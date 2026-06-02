@@ -1,4 +1,5 @@
 // FreeFlume — search results page implementation.
+#include "apppaths.h"
 #include "searchpage.h"
 
 #include <algorithm>
@@ -579,7 +580,7 @@ void SearchPage::goToPage(int page) {
 }
 
 void SearchPage::fetchPage() {
-    const QSettings s;
+    const QSettings s(apppaths::configFile(), QSettings::IniFormat);
     pageSize_ = qMax(1, s.value(QStringLiteral("search/limit"), 20).toInt());
     if (isChannelSource_) {
         if (currentChannelUrl_.isEmpty()) {
@@ -693,7 +694,7 @@ void SearchPage::populate(const QList<SearchResult>& allResults) {
 
     // Filter by the include/exclude settings (videos are always shown). When an
     // explicit Type filter is active, the user asked for that kind — show it all.
-    const QSettings s;
+    const QSettings s(apppaths::configFile(), QSettings::IniFormat);
     const bool typeFiltered = currentFilters_.type != 0;
     QList<SearchResult> results;
     for (const SearchResult& r : allResults) {

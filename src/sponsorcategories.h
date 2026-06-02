@@ -1,6 +1,7 @@
 // FreeFlume — shared SponsorBlock category metadata (settings + player agree).
 #pragma once
 
+#include "apppaths.h"
 #include <QColor>
 #include <QCoreApplication>
 #include <QList>
@@ -36,7 +37,7 @@ inline QList<CategoryInfo> categories() {
 
 // True when SponsorBlock is enabled at all.
 inline bool enabled() {
-    return QSettings().value(QStringLiteral("sponsorblock/enabled"), false).toBool();
+    return QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("sponsorblock/enabled"), false).toBool();
 }
 
 // The configured behaviour for a category key.
@@ -44,7 +45,7 @@ inline Mode modeFor(const QString& key) {
     if (!enabled()) {
         return Mode::Disabled;
     }
-    QSettings s;
+    QSettings s(apppaths::configFile(), QSettings::IniFormat);
     for (const CategoryInfo& c : categories()) {
         if (key == QLatin1String(c.key)) {
             const int def = c.defaultOn ? int(Mode::Auto) : int(Mode::Disabled);

@@ -1,4 +1,5 @@
 // FreeFlume — user-configurable player keyboard shortcuts.
+#include "apppaths.h"
 #include "shortcuts.h"
 
 #include <QSettings>
@@ -36,7 +37,7 @@ int keyFor(const QString& id) {
             break;
         }
     }
-    const QVariant v = QSettings().value(QStringLiteral("shortcuts/") + id);
+    const QVariant v = QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("shortcuts/") + id);
     if (!v.isValid()) {
         return def;
     }

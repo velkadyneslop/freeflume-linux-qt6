@@ -1,4 +1,5 @@
 // FreeFlume — player page implementation.
+#include "apppaths.h"
 #include "playerpage.h"
 
 #include "sharemenu.h"
@@ -208,9 +209,9 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
     queueHeader_->setWordWrap(true);
     autoplayToggle_ = new QCheckBox(tr("Autoplay next"), queuePanel_);
     autoplayToggle_->setChecked(
-        QSettings().value(QStringLiteral("playback/autoplayNext"), true).toBool());
+        QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/autoplayNext"), true).toBool());
     connect(autoplayToggle_, &QCheckBox::toggled, this, [](bool on) {
-        QSettings().setValue(QStringLiteral("playback/autoplayNext"), on);
+        QSettings(apppaths::configFile(), QSettings::IniFormat).setValue(QStringLiteral("playback/autoplayNext"), on);
     });
     queueThumbs_ = new ThumbnailLoader(this);
     queueList_ = new VideoList(queueThumbs_, queuePanel_);
@@ -293,7 +294,7 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
             connect(a, &QAction::triggered, this, [this, id] { active()->setSubtitleTrack(id); });
         }
         ccMenu->addSeparator();
-        const QString target = QSettings().value(QStringLiteral("subtitles/translateTo")).toString();
+        const QString target = QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("subtitles/translateTo")).toString();
         QAction* tr8 = ccMenu->addAction(QString());
         tr8->setCheckable(true);
         if (target.isEmpty()) {
@@ -302,9 +303,9 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
         } else {
             tr8->setText(tr("Auto-translate to %1").arg(languageName(target)));
             tr8->setChecked(
-                QSettings().value(QStringLiteral("subtitles/translateEnabled"), false).toBool());
+                QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("subtitles/translateEnabled"), false).toBool());
             connect(tr8, &QAction::toggled, this, [this](bool on) {
-                QSettings().setValue(QStringLiteral("subtitles/translateEnabled"), on);
+                QSettings(apppaths::configFile(), QSettings::IniFormat).setValue(QStringLiteral("subtitles/translateEnabled"), on);
                 active()->reload();  // re-fetch captions with/without translation
             });
         }
@@ -467,7 +468,7 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
 
     volume_ = new QSlider(Qt::Horizontal, transportBar_);
     volume_->setRange(0, 130);
-    volume_->setValue(QSettings().value(QStringLiteral("playback/volume"), 100).toInt());
+    volume_->setValue(QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/volume"), 100).toInt());
     volume_->setMaximumWidth(110);
     volume_->setFocusPolicy(Qt::NoFocus);
 
@@ -505,7 +506,7 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
         quality_->addItem(QString::fromUtf8(q.label), QString::fromUtf8(q.format));
     }
     const QString savedQuality =
-        QSettings().value(QStringLiteral("playback/quality"), QStringLiteral("Auto")).toString();
+        QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/quality"), QStringLiteral("Auto")).toString();
     quality_->setCurrentIndex(qMax(0, quality_->findText(savedQuality)));
 
     // Row 1: the seek bar spans the full width.
@@ -559,12 +560,12 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
     // Volume: apply to mpv and remember it for next time.
     connect(volume_, &QSlider::valueChanged, this, [this](int v) {
         active()->setVolume(v);
-        QSettings().setValue(QStringLiteral("playback/volume"), v);
+        QSettings(apppaths::configFile(), QSettings::IniFormat).setValue(QStringLiteral("playback/volume"), v);
     });
 
     // Quality: remember the choice and reload at the current position.
     connect(quality_, &QComboBox::currentIndexChanged, this, [this] {
-        QSettings().setValue(QStringLiteral("playback/quality"), quality_->currentText());
+        QSettings(apppaths::configFile(), QSettings::IniFormat).setValue(QStringLiteral("playback/quality"), quality_->currentText());
         video_->setYtdlFormat(quality_->currentData().toString());
         video_->reload();
     });
@@ -669,7 +670,7 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
         // Backfill the history entry with real metadata — a pasted link is first
         // recorded with just the URL as its title. (addHistory keeps progress.)
         if (db_ && !currentUrl_.isEmpty() && !d.title.isEmpty() &&
-            QSettings().value(QStringLiteral("history/rememberWatch"), true).toBool()) {
+            QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("history/rememberWatch"), true).toBool()) {
             SearchResult enriched;
             enriched.url = currentUrl_;
             enriched.title = d.title;
@@ -736,7 +737,7 @@ void PlayerPage::playQueue(const QList<SearchResult>& items, int startIndex,
     {  // reflect the current setting (it may have changed in Settings)
         const QSignalBlocker block(autoplayToggle_);
         autoplayToggle_->setChecked(
-            QSettings().value(QStringLiteral("playback/autoplayNext"), true).toBool());
+            QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/autoplayNext"), true).toBool());
     }
     queueList_->setItems(items);
     playIndex(qBound(0, startIndex, items.size() - 1));
@@ -788,7 +789,7 @@ void PlayerPage::playIndex(int index) {
     // Follow the preferred quality from Settings for each new video (the
     // in-player dropdown still allows a per-video override afterwards).
     const QString pref =
-        QSettings().value(QStringLiteral("playback/quality"), QStringLiteral("Auto")).toString();
+        QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/quality"), QStringLiteral("Auto")).toString();
     const int qi = quality_->findText(pref);
     if (qi >= 0) {
         const QSignalBlocker block(quality_);  // don't trigger a reload here
@@ -826,7 +827,7 @@ void PlayerPage::playIndex(int index) {
         const bool resumable = wp.position > 5 && !wp.completed &&
                                (wp.duration <= 0 || wp.position < wp.duration - 15);
         if (resumable) {
-            const QString mode = QSettings()
+            const QString mode = QSettings(apppaths::configFile(), QSettings::IniFormat)
                                      .value(QStringLiteral("playback/resumeMode"),
                                             QStringLiteral("resume"))
                                      .toString();
@@ -964,7 +965,7 @@ void PlayerPage::onPlaybackEnded() {
     currentUrl_.clear();  // so advancing doesn't re-save it as not-completed
     lastSavedPos_ = -1;
     const bool autoplay =
-        QSettings().value(QStringLiteral("playback/autoplayNext"), true).toBool();
+        QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/autoplayNext"), true).toBool();
     if (autoplay) {
         playNext();  // no-op when this was the last item
     }
@@ -1232,7 +1233,7 @@ void PlayerPage::takeScreenshot() {
     };
     const QString slug = slugify(rawName + QStringLiteral("_") + id);
 
-    QString base = QSettings()
+    QString base = QSettings(apppaths::configFile(), QSettings::IniFormat)
                        .value(QStringLiteral("screenshot/folder"),
                               QStandardPaths::writableLocation(QStandardPaths::PicturesLocation)
                                   + QStringLiteral("/FreeFlume"))
@@ -1249,7 +1250,7 @@ void PlayerPage::takeScreenshot() {
     // Map the format setting to an extension + encode quality. Fall back to PNG
     // if Qt has no writer for the chosen format on this system.
     const QString sel =
-        QSettings().value(QStringLiteral("screenshot/format"), QStringLiteral("png")).toString();
+        QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("screenshot/format"), QStringLiteral("png")).toString();
     QString fmt = QStringLiteral("png");
     int quality = -1;  // -1 = the writer's default
     if (sel == QLatin1String("jpg")) {
@@ -1396,7 +1397,7 @@ void PlayerPage::enterPip() {
                     [this, id] { if (pipVideo_) pipVideo_->setSubtitleTrack(id); });
         }
         pipCcMenu->addSeparator();
-        const QString target = QSettings().value(QStringLiteral("subtitles/translateTo")).toString();
+        const QString target = QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("subtitles/translateTo")).toString();
         QAction* tr8 = pipCcMenu->addAction(QString());
         tr8->setCheckable(true);
         if (target.isEmpty()) {
@@ -1405,9 +1406,9 @@ void PlayerPage::enterPip() {
         } else {
             tr8->setText(tr("Auto-translate to %1").arg(languageName(target)));
             tr8->setChecked(
-                QSettings().value(QStringLiteral("subtitles/translateEnabled"), false).toBool());
+                QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("subtitles/translateEnabled"), false).toBool());
             connect(tr8, &QAction::toggled, this, [this](bool on) {
-                QSettings().setValue(QStringLiteral("subtitles/translateEnabled"), on);
+                QSettings(apppaths::configFile(), QSettings::IniFormat).setValue(QStringLiteral("subtitles/translateEnabled"), on);
                 if (pipVideo_) pipVideo_->reload();  // re-fetch with/without translation
             });
         }

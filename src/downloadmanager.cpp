@@ -1,4 +1,5 @@
 // FreeFlume — download manager implementation.
+#include "apppaths.h"
 #include "downloadmanager.h"
 
 #include <QDir>
@@ -13,7 +14,7 @@ DownloadManager::DownloadManager(QObject* parent) : QObject(parent) {}
 QString DownloadManager::downloadDir() {
     const QString fallback =
         QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-    return QSettings().value(QStringLiteral("downloads/folder"), fallback).toString();
+    return QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("downloads/folder"), fallback).toString();
 }
 
 int DownloadManager::enqueue(const SearchResult& item, Download::Kind kind,
@@ -74,7 +75,7 @@ void DownloadManager::startNext() {
     };
     if (next->kind == Download::Subtitles) {
         const QString lang =
-            QSettings().value(QStringLiteral("subtitles/language"), QStringLiteral("en"))
+            QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("subtitles/language"), QStringLiteral("en"))
                 .toString();
         args << QStringLiteral("--skip-download") << QStringLiteral("--write-subs")
              << QStringLiteral("--convert-subs") << QStringLiteral("srt")
@@ -114,7 +115,7 @@ void DownloadManager::startNext() {
             container = QStringLiteral("mkv");
         }
         // Optional resolution cap (0 = no limit).
-        const int maxH = QSettings().value(QStringLiteral("downloads/maxHeight"), 0).toInt();
+        const int maxH = QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("downloads/maxHeight"), 0).toInt();
         const QString hf = maxH > 0 ? QStringLiteral("[height<=%1]").arg(maxH) : QString();
         const QString v = QStringLiteral("bv*%1%2").arg(vcodec, hf);  // capped video stream
         QString sel;
@@ -130,7 +131,7 @@ void DownloadManager::startNext() {
 
         // Optionally bake captions into the file (preferred language, manual or
         // auto — exact codes only so we don't pull every auto-translation).
-        QSettings s;
+        QSettings s(apppaths::configFile(), QSettings::IniFormat);
         if (s.value(QStringLiteral("downloads/embedSubs"), false).toBool()) {
             const QString lang =
                 s.value(QStringLiteral("subtitles/language"), QStringLiteral("en")).toString();

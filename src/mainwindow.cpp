@@ -1,4 +1,5 @@
 // FreeFlume — main window shell implementation.
+#include "apppaths.h"
 #include "mainwindow.h"
 
 #include <QCompleter>
@@ -62,8 +63,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1100, 720);
 
     // Persistence: one SQLite file under the user's data dir.
-    const QString dataDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    QDir().mkpath(dataDir);
+    const QString dataDir = apppaths::dataDir();
     db_ = new Database(this);
     db_->open(dataDir + QStringLiteral("/freeflume.db"));
 
@@ -160,7 +160,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     });
     connect(playerPage_, &PlayerPage::nowPlaying, this, [this](const SearchResult& item) {
         statusBar()->showMessage(QStringLiteral("Playing: %1").arg(item.title), 5000);
-        if (QSettings().value(QStringLiteral("history/rememberWatch"), true).toBool()) {
+        if (QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("history/rememberWatch"), true).toBool()) {
             db_->addHistory(item);
         }
     });
@@ -318,7 +318,7 @@ void MainWindow::onSearchSubmitted() {
         playUrl(asUrl);
         return;
     }
-    if (QSettings().value(QStringLiteral("history/rememberSearch"), true).toBool()) {
+    if (QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("history/rememberSearch"), true).toBool()) {
         db_->addSearch(query);
         searchModel_->setStringList(db_->searchHistory());
     }
@@ -436,7 +436,7 @@ void MainWindow::updateSidebarVisibility() {
 }
 
 void MainWindow::collapsePlayer() {
-    if (QSettings().value(QStringLiteral("playback/miniPlayer"), true).toBool()) {
+    if (QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/miniPlayer"), true).toBool()) {
         setPlayerState(PlayerMini);
     } else {
         playerPage_->stop();

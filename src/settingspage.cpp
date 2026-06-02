@@ -1,4 +1,5 @@
 // FreeFlume — settings page implementation.
+#include "apppaths.h"
 #include "settingspage.h"
 
 #include <QCheckBox>
@@ -264,9 +265,7 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
                   new QLabel(firstLine(QStringLiteral("mpv"),
                                        {QStringLiteral("--version")}), backends));
     bForm->addRow(tr("Data folder:"),
-                  new QLabel(QStandardPaths::writableLocation(
-                                 QStandardPaths::AppDataLocation),
-                             backends));
+                  new QLabel(apppaths::dataDir(), backends));
     col->addWidget(backends);
 
     col->addStretch();
@@ -377,7 +376,7 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
 }
 
 void SettingsPage::load() {
-    QSettings s;
+    QSettings s(apppaths::configFile(), QSettings::IniFormat);
     const QString scheme = s.value(QStringLiteral("appearance/colorScheme"),
                                    QStringLiteral("system")).toString();
     colorScheme_->setCurrentIndex(qMax(0, colorScheme_->findData(scheme)));
@@ -467,7 +466,7 @@ void SettingsPage::load() {
 }
 
 void SettingsPage::save() {
-    QSettings s;
+    QSettings s(apppaths::configFile(), QSettings::IniFormat);
     s.setValue(QStringLiteral("appearance/colorScheme"), colorScheme_->currentData());
     s.setValue(QStringLiteral("appearance/style"), style_->currentData());
     s.setValue(QStringLiteral("playback/quality"), quality_->currentText());

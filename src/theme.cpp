@@ -1,4 +1,5 @@
 // FreeFlume — theme helpers implementation.
+#include "apppaths.h"
 #include "theme.h"
 
 #include <QApplication>
@@ -97,7 +98,7 @@ QStringList availableStyles() {
 
 void applySaved() {
     defaultStyleKey();  // capture default before any override
-    QSettings s;
+    QSettings s(apppaths::configFile(), QSettings::IniFormat);
     applyStyle(s.value(QStringLiteral("appearance/style"),
                        QStringLiteral("native")).toString());
     applyColorScheme(s.value(QStringLiteral("appearance/colorScheme"),

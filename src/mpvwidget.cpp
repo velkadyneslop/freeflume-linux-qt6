@@ -1,4 +1,5 @@
 // FreeFlume — embedded libmpv video widget implementation.
+#include "apppaths.h"
 #include "mpvwidget.h"
 
 #include <clocale>
@@ -43,7 +44,7 @@ MpvWidget::MpvWidget(QWidget* parent) : QOpenGLWidget(parent) {
     // (see applySubtitleSettings). Don't auto-show them on load.
     mpv_set_option_string(mpv_, "sub-auto", "no");
     mpv_set_option_string(mpv_, "vo", "libmpv");
-    const bool hwdec = QSettings().value(QStringLiteral("playback/hwdec"), true).toBool();
+    const bool hwdec = QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/hwdec"), true).toBool();
     mpv_set_option_string(mpv_, "hwdec", hwdec ? "auto-safe" : "no");
     mpv_set_option_string(mpv_, "keep-open", "yes");
 
@@ -406,7 +407,7 @@ void MpvWidget::applySubtitleSettings() {
     if (!mpv_) {
         return;
     }
-    const QSettings s;
+    const QSettings s(apppaths::configFile(), QSettings::IniFormat);
     auto setProp = [this](const char* name, const QByteArray& value) {
         mpv_set_property_string(mpv_, name, value.constData());
     };
