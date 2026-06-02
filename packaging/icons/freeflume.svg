@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#1f9fe0"/>
+      <stop offset="0.55" stop-color="#0e6aa8"/>
+      <stop offset="1"   stop-color="#073f6b"/>
+    </linearGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1"   stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <!-- Flume tube: cylindrical shading top→bottom -->
+    <linearGradient id="flume" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#aee9ff"/>
+      <stop offset="0.5" stop-color="#3fb0ec"/>
+      <stop offset="1"   stop-color="#0d5e9c"/>
+    </linearGradient>
+    <linearGradient id="play" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#ffffff"/>
+      <stop offset="1"   stop-color="#dcebf5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Tile -->
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#tile)"/>
+  <rect x="8" y="8" width="496" height="496" rx="112" fill="url(#gloss)"/>
+  <rect x="9.5" y="9.5" width="493" height="493" rx="110" fill="none"
+        stroke="#062f50" stroke-opacity="0.5" stroke-width="3"/>
+
+  <!-- Flume: a fat curved chute of water sweeping across -->
+  <g stroke-linecap="round" fill="none">
+    <path d="M 70 150 C 190 120, 330 250, 452 392" stroke="#063b63"
+          stroke-opacity="0.35" stroke-width="104"/>
+    <path d="M 70 150 C 190 120, 330 250, 452 392" stroke="url(#flume)"
+          stroke-width="92"/>
+    <!-- water sheen highlight -->
+    <path d="M 78 138 C 196 110, 334 240, 452 380" stroke="#eafaff"
+          stroke-opacity="0.55" stroke-width="20"/>
+    <!-- lower ripple line -->
+    <path d="M 86 176 C 196 150, 326 276, 448 412" stroke="#0a4e84"
+          stroke-opacity="0.5" stroke-width="10"/>
+  </g>
+
+  <!-- Play button (glossy white) with a soft offset shadow -->
+  <path d="M 206 176 L 206 336 L 348 256 Z" fill="#03304f" opacity="0.28"
+        transform="translate(0,9)"/>
+  <path d="M 202 172 L 202 340 L 350 256 Z" fill="url(#play)"
+        stroke="#ffffff" stroke-width="2" stroke-linejoin="round"/>
+  <!-- gloss on upper half of the triangle -->
+  <path d="M 202 172 L 202 256 L 350 256 Z" fill="#ffffff" opacity="0.25"/>
+</svg>

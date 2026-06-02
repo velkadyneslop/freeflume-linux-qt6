@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=FreeFlume
+GenericName=YouTube Client
+Comment=A fast, native desktop YouTube client
+Exec=freeflume %U
+Icon=freeflume
+Terminal=false
+Categories=AudioVideo;Video;Player;Network;
+Keywords=youtube;video;stream;mpv;yt-dlp;
+StartupNotify=true
+StartupWMClass=freeflume

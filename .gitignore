@@ -1,0 +1,23 @@
+# Build output
+/build/
+/build-*/
+*.o
+*.so
+*.a
+
+# Qt / CMake cruft
+CMakeCache.txt
+CMakeFiles/
+*_autogen/
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+
+# Editor / OS
+.cache/
+.idea/
+.vscode/
+compile_commands.json
+*.swp
+*~
+.DS_Store

@@ -1,0 +1,13 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+  <qresource prefix="/icons">
+    <file>freeflume-16.png</file>
+    <file>freeflume-24.png</file>
+    <file>freeflume-32.png</file>
+    <file>freeflume-48.png</file>
+    <file>freeflume-64.png</file>
+    <file>freeflume-128.png</file>
+    <file>freeflume-256.png</file>
+    <file>freeflume-512.png</file>
+  </qresource>
+</RCC>
