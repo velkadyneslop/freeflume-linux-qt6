@@ -16,6 +16,7 @@
 #include <QApplication>
 #include <QIcon>
 
+#include "apppaths.h"
 #include "mainwindow.h"
 #include "theme.h"
 
@@ -23,8 +24,11 @@ int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("FreeFlume"));
     QApplication::setApplicationDisplayName(QStringLiteral("FreeFlume"));
-    QApplication::setOrganizationName(QStringLiteral("FreeFlume"));
+    QApplication::setOrganizationName(QStringLiteral("velkadyne"));
     QApplication::setDesktopFileName(QStringLiteral("org.freeflume.Desktop"));
+
+    // Move data/config over from the pre-1.0 "FreeFlume/FreeFlume" layout.
+    apppaths::migrateLegacy();
 
     // App icon (embedded), with the installed theme icon as a fallback.
     QIcon icon = QIcon::fromTheme(QStringLiteral("freeflume"));
