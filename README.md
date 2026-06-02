@@ -1,7 +1,7 @@
 # FreeFlume
 
-A fast, native desktop **YouTube client** for Linux — built from the ground up
-for big screens, mouse and keyboard. **No Electron, no JVM** — a small native
+A fast, native desktop **YT client** for Linux — built from the ground up
+for big screens, mouse and keyboard. — a small native
 C++/Qt6 binary.
 
 ![native](https://img.shields.io/badge/native-C%2B%2B%2FQt6-blue)
