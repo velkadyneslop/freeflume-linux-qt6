@@ -64,3 +64,8 @@ cmake -S . -B build -G Ninja && cmake --build build
 ```
 
 `yt-dlp` and `mpv` are runtime requirements.
+
+## A note
+
+I built FreeFlume for my own use. If you're a dev and want to lift anything from
+it, go ahead — take whatever's useful.
