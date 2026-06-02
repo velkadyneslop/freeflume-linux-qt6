@@ -27,3 +27,6 @@ compile_commands.json
 /.flatpak-builder/
 *.AppImage
 *.flatpak
+
+# Separate side project — never part of FreeFlume-linux
+/FreeFlumePico/
