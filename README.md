@@ -35,6 +35,24 @@ C++/Qt6 binary.
 - 🎨 **Native on every desktop** — Breeze on KDE, gtk3 theme on GNOME; follows
   system light/dark; overridable in Settings
 
+## Run the binary
+
+The prebuilt `freeflume` binary is dynamically linked, so the host needs Qt6,
+libmpv, and `yt-dlp` (mpv's package usually provides libmpv):
+
+```bash
+# Fedora
+sudo dnf install qt6-qtbase mpv yt-dlp
+# Debian / Ubuntu
+sudo apt install libqt6widgets6 libqt6opengl6 libqt6sql6-sqlite libmpv2 mpv yt-dlp
+# Arch
+sudo pacman -S qt6-base mpv yt-dlp
+
+./freeflume
+```
+
+The AppImage and Flatpak builds bundle Qt and libmpv themselves.
+
 ## Build
 
 See [doc/BUILD.md](doc/BUILD.md). Quick start on Fedora:
