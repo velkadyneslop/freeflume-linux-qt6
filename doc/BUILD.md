@@ -1,6 +1,6 @@
 # Building FreeFlume
 
-A fast, native C++/Qt6 desktop YouTube client. No Electron, no JVM.
+A fast, native C++/Qt6 desktop YT client. No Electron, no JVM.
 
 - **UI:** Qt6 Widgets (+ OpenGLWidgets, Network, Sql)
 - **Playback:** libmpv (embedded via the OpenGL render API)

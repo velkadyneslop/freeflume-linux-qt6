@@ -37,7 +37,7 @@ MpvWidget::MpvWidget(QWidget* parent) : QOpenGLWidget(parent) {
         throw std::runtime_error("Could not create mpv context");
     }
 
-    // Use yt-dlp for streaming URLs (YouTube, Rumble, BitChute, …).
+    // Use yt-dlp for streaming URLs (YT, Rumble, BitChute, …).
     mpv_set_option_string(mpv_, "ytdl", "yes");
     mpv_set_option_string(mpv_, "script-opts", "ytdl_hook-ytdl_path=yt-dlp");
     // Captions: which to fetch + styling are applied from QSettings per video
@@ -421,7 +421,7 @@ void MpvWidget::applySubtitleSettings() {
         !translateTo.isEmpty() && s.value(QStringLiteral("subtitles/translateEnabled"), false).toBool();
     QByteArray langPattern;
     if (translateOn) {
-        // YouTube auto-translation is delivered as an auto-caption in the target
+        // YT auto-translation is delivered as an auto-caption in the target
         // language, so request that language and enable auto-subs.
         langPattern = translateTo.toUtf8();
         wantAuto = true;

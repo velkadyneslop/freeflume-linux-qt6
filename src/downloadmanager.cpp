@@ -82,7 +82,7 @@ void DownloadManager::startNext() {
              << QStringLiteral("--sleep-subtitles") << QStringLiteral("1");  // dodge rate limits
         if (lang == QLatin1String("all")) {
             // Every MANUAL track. Auto-captions are skipped here: their machine
-            // translations are hundreds of tracks and trip YouTube's rate limit.
+            // translations are hundreds of tracks and trip YT's rate limit.
             args << QStringLiteral("--sub-langs") << QStringLiteral("all");
         } else {
             // The chosen language, manual or auto — but exact codes only, so we

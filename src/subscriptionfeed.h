@@ -10,7 +10,7 @@
 
 class QNetworkAccessManager;
 
-// Fetches each subscribed channel's YouTube RSS feed (resolving + caching the
+// Fetches each subscribed channel's YT RSS feed (resolving + caching the
 // UC… id as needed), merges every video, and emits them newest-first.
 class SubscriptionFeed : public QObject {
     Q_OBJECT

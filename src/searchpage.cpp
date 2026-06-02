@@ -151,7 +151,7 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     connect(channelSearch_, &QLineEdit::returnPressed, this,
             [this] { searchCurrentChannel(channelSearch_->text().trimmed()); });
 
-    // Filter bar (YouTube-style): Upload date · Type · Duration · Sort by.
+    // Filter bar (YT-style): Upload date · Type · Duration · Sort by.
     filterBar_ = new QWidget(left);
     auto* filterRow = new QHBoxLayout(filterBar_);
     filterRow->setContentsMargins(8, 0, 8, 4);

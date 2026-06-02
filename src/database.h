@@ -22,7 +22,7 @@ struct Subscription {
     QString channelName;
     QString channelUrl;
     QString avatarUrl;
-    QString channelId;  // YouTube UC… id (cached, for the RSS feed)
+    QString channelId;  // YT UC… id (cached, for the RSS feed)
 };
 
 struct Playlist {

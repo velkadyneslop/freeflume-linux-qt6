@@ -215,7 +215,7 @@ void Extractor::cancel() {
 }
 
 namespace {
-// Encodes the filters into YouTube's sp= protobuf (base64). Layout:
+// Encodes the filters into YT's sp= protobuf (base64). Layout:
 //   field 1 (varint)        = sort
 //   field 2 (sub-message)   = { 1: uploadDate, 2: type, 3: duration }
 QByteArray buildSpParam(const SearchFilters& f) {

@@ -14,7 +14,7 @@ namespace share {
 
 inline void copy(const QString& text) { QApplication::clipboard()->setText(text); }
 
-// Extracts the YouTube video id from a watch or youtu.be URL ("" if not a video).
+// Extracts the YT video id from a watch or youtu.be URL ("" if not a video).
 inline QString videoId(const QString& url) {
     const QUrl u(url);
     if (u.host().contains(QLatin1String("youtu.be"))) {

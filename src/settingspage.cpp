@@ -213,7 +213,7 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     subLanguage_->addItem(tr("Hindi"), QStringLiteral("hi"));
     subTranslate_ = new QComboBox(subs);
     subTranslate_->setToolTip(
-        tr("Have YouTube auto-translate the captions to this language (uses "
+        tr("Have YT auto-translate the captions to this language (uses "
            "auto-captions, which can occasionally render as rolling lines)."));
     subTranslate_->addItem(tr("Off (no translation)"), QString());
     subTranslate_->addItem(tr("English"), QStringLiteral("en"));

@@ -10,7 +10,7 @@
 namespace thumbdecor {
 
 // Scales `src` to fill `size` (cropping the overflow, like the plain thumbnails),
-// then overlays a YouTube-style red progress line and dims it if watched.
+// then overlays a YT-style red progress line and dims it if watched.
 inline QPixmap apply(const QPixmap& src, QSize size, const WatchProgress& p) {
     QPixmap pm = src.scaled(size, Qt::KeepAspectRatioByExpanding, Qt::SmoothTransformation);
     if (pm.size() != size) {  // centre-crop to the exact cell size

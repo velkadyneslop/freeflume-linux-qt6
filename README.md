@@ -23,7 +23,7 @@ C++/Qt6 binary.
 
 ## Features
 
-- 🔎 **Search** with thumbnails, pagination, YouTube-style filters, channels &
+- 🔎 **Search** with thumbnails, pagination, YT-style filters, channels &
   playlists in results, and per-channel search
 - 📄 **Detail pane** — description (clickable links), stats, clickable channel
 - ▶️ **Embedded player** (libmpv): click-to-seek, hover time preview, quality

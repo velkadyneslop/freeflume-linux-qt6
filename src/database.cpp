@@ -67,7 +67,7 @@ void Database::createSchema() {
     // Search history.
     q.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS search_history ("
                           " query TEXT PRIMARY KEY, searched_at INTEGER)"));
-    // Cached YouTube channel id (UC…) for the What's New RSS feed.
+    // Cached YT channel id (UC…) for the What's New RSS feed.
     q.exec(QStringLiteral("ALTER TABLE subscriptions ADD COLUMN channel_id TEXT"));
 }
 

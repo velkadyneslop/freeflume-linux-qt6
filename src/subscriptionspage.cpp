@@ -34,7 +34,7 @@ constexpr int kUrlRole = Qt::UserRole + 1;
 constexpr int kFeedRole = Qt::UserRole + 2;  // marks the "What's New" row
 
 // Parses a subscriptions export, auto-detecting the format: FreeFlume JSON,
-// NewPipe JSON, YouTube Data-API JSON, FreeTube .db (NDJSON), Google Takeout
+// NewPipe JSON, YT Data-API JSON, FreeTube .db (NDJSON), Google Takeout
 // CSV, OPML, or a plain list of channel URLs.
 QList<Subscription> parseSubscriptions(const QByteArray& data) {
     QList<Subscription> out;
@@ -93,7 +93,7 @@ QList<Subscription> parseSubscriptions(const QByteArray& data) {
         } else if (doc.isArray()) {
             for (const QJsonValue& v : doc.array()) {
                 const QJsonObject o = v.toObject();
-                if (o.contains(QLatin1String("snippet"))) {  // YouTube Data API
+                if (o.contains(QLatin1String("snippet"))) {  // YT Data API
                     const QJsonObject sn = o.value(QLatin1String("snippet")).toObject();
                     QString cid = sn.value(QLatin1String("resourceId"))
                                       .toObject()
@@ -425,7 +425,7 @@ void SubscriptionsPage::importSubscriptions() {
     } else {
         QMessageBox::warning(
             this, tr("Import"),
-            tr("No subscriptions found. Supported: FreeFlume/NewPipe/YouTube JSON, "
+            tr("No subscriptions found. Supported: FreeFlume/NewPipe/YT JSON, "
                "FreeTube .db, Takeout CSV, OPML, or a list of channel URLs."));
     }
 }

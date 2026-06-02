@@ -1,7 +1,7 @@
 // FreeFlume — extraction backend.
 //
 // Wraps yt-dlp as an asynchronous subprocess. yt-dlp replaces NewPipe's
-// JVM-only extractor and supports YouTube, Rumble, BitChute, and many more.
+// JVM-only extractor and supports YT, Rumble, BitChute, and many more.
 #pragma once
 
 #include <QList>
@@ -12,7 +12,7 @@
 // What a search result points to.
 enum class ResultKind { Video, Short, Channel, Playlist };
 
-// YouTube search filters (encoded into the sp= URL parameter). 0 = "any".
+// YT search filters (encoded into the sp= URL parameter). 0 = "any".
 struct SearchFilters {
     int uploadDate = 0;  // 1 hour, 2 today, 3 week, 4 month, 5 year
     int type = 0;        // 1 video, 2 channel, 3 playlist, 4 movie
@@ -41,7 +41,7 @@ struct SearchResult {
     qint64 published = 0;        // upload time (unix secs); 0 = unknown (feed only)
 };
 
-// A YouTube storyboard: a set of sprite images, each a rows×columns grid of
+// A YT storyboard: a set of sprite images, each a rows×columns grid of
 // little thumbnails at a fixed time interval (used for seek-bar previews).
 struct StoryboardFragment {
     QString url;
@@ -89,7 +89,7 @@ public:
     explicit Extractor(QObject* parent = nullptr);
 
     // Kicks off a search for one page of results (1-based page, pageSize per
-    // page). When richResults is true, the full YouTube results page is used so
+    // page). When richResults is true, the full YT results page is used so
     // that channels and playlists are returned too (not just videos).
     void search(const QString& query, int page = 1, int pageSize = 20,
                 bool richResults = false, const SearchFilters& filters = {});
@@ -98,7 +98,7 @@ public:
     // searchStarted/searchFinished/searchFailed signals as search().
     void fetchChannel(const QString& channelUrl, int page = 1, int pageSize = 50);
 
-    // Searches within a single channel (YouTube's per-channel search). Emits the
+    // Searches within a single channel (YT's per-channel search). Emits the
     // same signals as search(). channelUrl may include a tab; it is stripped.
     void searchInChannel(const QString& channelUrl, const QString& query, int page = 1,
                          int pageSize = 20);
