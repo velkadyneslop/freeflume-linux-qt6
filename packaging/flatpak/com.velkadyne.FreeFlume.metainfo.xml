@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.velkadyne.FreeFlume</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>FreeFlume</name>
+  <summary>Fast native desktop YouTube client</summary>
+  <description>
+    <p>
+      FreeFlume is a fast, native C++/Qt6 desktop YouTube client for Linux. It
+      uses yt-dlp for extraction and libmpv for playback, with search,
+      subscriptions, playlists, history, downloads, SponsorBlock, picture-in-picture
+      and a configurable player.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.velkadyne.FreeFlume.desktop</launchable>
+  <url type="homepage">https://codeberg.org/velkadyne/FreeFlume-linux</url>
+  <url type="bugtracker">https://codeberg.org/velkadyne/FreeFlume-linux/issues</url>
+  <developer id="com.velkadyne">
+    <name>velkadyne</name>
+  </developer>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0.0" date="2026-06-02"/>
+  </releases>
+</component>
