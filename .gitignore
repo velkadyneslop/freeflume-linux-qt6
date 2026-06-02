@@ -21,3 +21,9 @@ compile_commands.json
 *.swp
 *~
 .DS_Store
+
+# Release artifacts (binaries, AppImage, flatpak build dirs)
+/Linux-Release/
+/.flatpak-builder/
+*.AppImage
+*.flatpak
