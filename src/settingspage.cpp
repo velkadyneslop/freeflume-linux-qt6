@@ -411,7 +411,8 @@ void SettingsPage::load() {
     }
     downloadFolder_ = s.value(QStringLiteral("downloads/folder"),
                               QStandardPaths::writableLocation(
-                                  QStandardPaths::DownloadLocation)).toString();
+                                  QStandardPaths::DownloadLocation) +
+                                  QStringLiteral("/FreeFlume")).toString();
     downloadFolderButton_->setText(downloadFolder_);
     downloadQuality_->setCurrentIndex(qMax(0, downloadQuality_->findData(
         s.value(QStringLiteral("downloads/maxHeight"), 0).toInt())));

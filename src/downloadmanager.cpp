@@ -13,7 +13,8 @@ DownloadManager::DownloadManager(QObject* parent) : QObject(parent) {}
 
 QString DownloadManager::downloadDir() {
     const QString fallback =
-        QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+        QStandardPaths::writableLocation(QStandardPaths::DownloadLocation) +
+        QStringLiteral("/FreeFlume");
     return QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("downloads/folder"), fallback).toString();
 }
 
