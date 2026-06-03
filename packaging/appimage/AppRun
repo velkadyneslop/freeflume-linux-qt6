@@ -1,0 +1,7 @@
+#!/bin/bash
+# Custom AppRun: put the bundled yt-dlp on PATH (so the app + mpv's ytdl hook
+# find it). Qt plugins/libs are resolved via qt.conf + RUNPATH, so nothing else
+# is needed here.
+HERE="$(dirname "$(readlink -f "${0}")")"
+export PATH="${HERE}/usr/bin:${PATH}"
+exec "${HERE}/usr/bin/freeflume" "$@"

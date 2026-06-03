@@ -1,0 +1,25 @@
+# Build environment for the FreeFlume AppImage.
+# Ubuntu 24.04 = Qt 6.4 + a clean libmpv dependency tree (unlike Fedora's
+# kitchen-sink build) + glibc 2.39 (broad desktop compatibility).
+FROM docker.io/library/ubuntu:24.04
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake ninja-build pkg-config file ca-certificates wget \
+        qt6-base-dev qt6-base-dev-tools libqt6opengl6-dev \
+        libqt6sql6-sqlite qt6-qpa-plugins \
+        libmpv-dev \
+        libgl1-mesa-dev libegl1-mesa-dev \
+        libxcb-cursor0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# linuxdeploy + Qt plugin + appimagetool (run with APPIMAGE_EXTRACT_AND_RUN=1,
+# so no FUSE needed inside the container).
+RUN cd /opt && \
+    wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && \
+    wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage && \
+    wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage && \
+    chmod +x *.AppImage && \
+    ln -s /opt/appimagetool-x86_64.AppImage /usr/local/bin/appimagetool && \
+    ln -s /opt/linuxdeploy-plugin-qt-x86_64.AppImage /usr/local/bin/linuxdeploy-plugin-qt && \
+    ln -s /opt/linuxdeploy-x86_64.AppImage /usr/local/bin/linuxdeploy

@@ -66,16 +66,27 @@ QPalette darkPalette() {
 
 void applyColorScheme(const QString& mode) {
     defaultPalette();  // capture once, before any override
+    // QStyleHints::setColorScheme is Qt 6.8+. On older Qt the palette override
+    // below still applies the light/dark look; the style just isn't told the
+    // scheme (used by the AppImage's bundled Qt).
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     QStyleHints* hints = QApplication::styleHints();
+#endif
     if (mode == QLatin1String("light")) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
         hints->setColorScheme(Qt::ColorScheme::Light);
+#endif
         QApplication::setPalette(lightPalette());
     } else if (mode == QLatin1String("dark")) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
         hints->setColorScheme(Qt::ColorScheme::Dark);
+#endif
         QApplication::setPalette(darkPalette());
     } else {
         // Follow the system: drop our override and restore the platform palette.
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
         hints->setColorScheme(Qt::ColorScheme::Unknown);
+#endif
         QApplication::setPalette(defaultPalette());
     }
 }

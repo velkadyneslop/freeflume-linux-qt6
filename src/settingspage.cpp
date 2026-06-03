@@ -171,8 +171,12 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     auto* kForm = new QFormLayout(keys);
     for (const shortcuts::Action& a : shortcuts::actions()) {
         auto* edit = new QKeySequenceEdit(keys);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
         edit->setMaximumSequenceLength(1);  // single-key shortcuts
+#endif
+#if QT_VERSION >= QT_VERSION_CHECK(6, 4, 0)
         edit->setClearButtonEnabled(true);
+#endif
         connect(edit, &QKeySequenceEdit::editingFinished, this, [this] { save(); });
         shortcutEdits_.insert(a.id, edit);
         kForm->addRow(a.label, edit);
