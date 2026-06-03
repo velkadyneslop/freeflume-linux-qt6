@@ -167,6 +167,7 @@ void MpvWidget::handleEvent(mpv_event* event) {
             } else if (prop->format == MPV_FORMAT_FLAG) {
                 const bool flag = *static_cast<int*>(prop->data) != 0;
                 if (name == QLatin1String("pause")) {
+                    inhibitor_.setActive(!flag);  // stay awake only while playing
                     emit pausedChanged(flag);
                 } else if (name == QLatin1String("mute")) {
                     emit mutedChanged(flag);
@@ -174,6 +175,7 @@ void MpvWidget::handleEvent(mpv_event* event) {
                     // With keep-open=yes, mpv pauses at the end instead of
                     // emitting END_FILE, so this property is the end-of-video
                     // signal. It flips back to false on a new file or a seek.
+                    inhibitor_.setActive(false);
                     emit endReached();
                 }
             } else if (prop->format == MPV_FORMAT_STRING) {
@@ -287,6 +289,7 @@ void MpvWidget::reload() {
 }
 
 void MpvWidget::stop() {
+    inhibitor_.setActive(false);
     command({QStringLiteral("stop")});
 }
 

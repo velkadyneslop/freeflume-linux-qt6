@@ -15,7 +15,7 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Network Sql)
+find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Network Sql DBus)
 
 # libmpv via pkg-config.
 find_package(PkgConfig REQUIRED)
@@ -28,6 +28,7 @@ add_executable(freeflume
     src/extractor.cpp
     src/searchpage.cpp
     src/mpvwidget.cpp
+    src/idleinhibitor.cpp
     src/playerpage.cpp
     src/seekslider.cpp
     src/thumbnailloader.cpp
@@ -53,6 +54,7 @@ target_link_libraries(freeflume PRIVATE
     Qt6::OpenGLWidgets
     Qt6::Network
     Qt6::Sql
+    Qt6::DBus
     ${MPV_LINK}
 )
 target_compile_options(freeflume PRIVATE -Wall -Wextra)

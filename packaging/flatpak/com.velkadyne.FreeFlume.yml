@@ -13,6 +13,9 @@ finish-args:
   - --device=dri
   - --filesystem=xdg-download
   - --filesystem=xdg-pictures
+  # Inhibit screensaver/lock + auto-suspend while a video is playing.
+  - --talk-name=org.freedesktop.ScreenSaver
+  - --talk-name=org.freedesktop.PowerManagement.Inhibit
 
 cleanup:
   - /include

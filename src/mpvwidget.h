@@ -8,6 +8,8 @@
 #include <QOpenGLWidget>
 #include <QString>
 
+#include "idleinhibitor.h"
+
 class QImage;
 
 struct mpv_handle;
@@ -92,4 +94,5 @@ private:
     mpv_render_context* renderCtx_ = nullptr;
     QString currentUrl_;
     double pendingSeek_ = 0.0;  // seek-to position applied on the next load
+    IdleInhibitor inhibitor_;   // blocks screensaver/suspend while playing
 };
