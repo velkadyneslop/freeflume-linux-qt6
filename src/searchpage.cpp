@@ -25,6 +25,7 @@
 #include "database.h"
 #include "detailpane.h"
 #include "downloadmenu.h"
+#include "listcontextmenu.h"
 #include "playlistmenu.h"
 #include "sharemenu.h"
 #include "thumbdecor.h"
@@ -273,13 +274,10 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     connect(detail_, &DetailPane::channelRequested, this,
             [this](const QString& url) { openChannel(url); });
 
-    // Per-row context menu is set in populate(); this is a view-level fallback.
-    list_->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(list_, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
-        if (QListWidgetItem* item = list_->itemAt(pos)) {
-            showContextMenu(item->data(kResultRole).value<SearchResult>(),
-                            list_->viewport()->mapToGlobal(pos));
-        }
+    // One reliable right-click handler (filters ContextMenu events on the
+    // viewport) — works on the first click over any row, selected or not.
+    ListContextMenu::install(list_, [this](QListWidgetItem* item, const QPoint& globalPos) {
+        showContextMenu(item->data(kResultRole).value<SearchResult>(), globalPos);
     });
 
     connect(prevBtn_, &QPushButton::clicked, this, [this] {
@@ -717,10 +715,6 @@ void SearchPage::populate(const QList<SearchResult>& allResults) {
         item->setSizeHint(QSize(0, 80));
 
         auto* row = new QWidget(list_);
-        row->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(row, &QWidget::customContextMenuRequested, this, [this, r, row](const QPoint& p) {
-            showContextMenu(r, row->mapToGlobal(p));
-        });
         auto* hbox = new QHBoxLayout(row);
         hbox->setContentsMargins(8, 6, 10, 6);
         hbox->setSpacing(10);

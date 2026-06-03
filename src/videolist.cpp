@@ -16,6 +16,7 @@
 #include "database.h"
 #include "downloadmenu.h"
 #include "hoverreveal.h"
+#include "listcontextmenu.h"
 #include "playlistmenu.h"
 #include "reorderlistwidget.h"
 #include "sharemenu.h"
@@ -133,14 +134,10 @@ VideoList::VideoList(ThumbnailLoader* thumbs, QWidget* parent)
         }
     });
 
-    // A view-level fallback; the per-row handler (set in setItems) is what fires
-    // reliably on the very first right-click over an item widget.
-    list_->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(list_, &QListWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
-        if (QListWidgetItem* item = list_->itemAt(pos)) {
-            showContextMenu(item->data(kResultRole).value<SearchResult>(),
-                            list_->viewport()->mapToGlobal(pos));
-        }
+    // One reliable right-click handler (filters ContextMenu events on the
+    // viewport) — works on the first click over any row, selected or not.
+    ListContextMenu::install(list_, [this](QListWidgetItem* item, const QPoint& globalPos) {
+        showContextMenu(item->data(kResultRole).value<SearchResult>(), globalPos);
     });
 }
 
@@ -213,10 +210,6 @@ void VideoList::setItems(const QList<SearchResult>& items) {
         item->setSizeHint(QSize(0, 80));
 
         auto* row = new QWidget(list_);
-        row->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(row, &QWidget::customContextMenuRequested, this, [this, r, row](const QPoint& p) {
-            showContextMenu(r, row->mapToGlobal(p));
-        });
         auto* hbox = new QHBoxLayout(row);
         hbox->setContentsMargins(8, 6, 10, 6);
         hbox->setSpacing(10);

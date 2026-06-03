@@ -24,6 +24,7 @@
 
 #include "database.h"
 #include "hoverreveal.h"
+#include "listcontextmenu.h"
 #include "sharemenu.h"
 #include "subscriptionfeed.h"
 #include "thumbnailloader.h"
@@ -189,6 +190,22 @@ SubscriptionsPage::SubscriptionsPage(Database* db, ThumbnailLoader* thumbs, QWid
     channels_->setFrameShape(QFrame::NoFrame);
     leftCol->addWidget(channels_, 1);
 
+    // One reliable right-click handler for the channel rows (filters ContextMenu
+    // events on the viewport) — fires on the first click, selected or not.
+    ListContextMenu::install(channels_, [this](QListWidgetItem* item, const QPoint& globalPos) {
+        const QString chUrl = item->data(kUrlRole).toString();
+        if (chUrl.isEmpty()) {  // the "What's New" pseudo-row has no channel
+            return;
+        }
+        QMenu menu(this);
+        menu.addAction(tr("&Open Channel"), [this, chUrl] { emit channelRequested(chUrl); });
+        menu.addAction(QIcon::fromTheme(QStringLiteral("list-remove")), tr("&Unsubscribe"),
+                       [this, chUrl] { db_->unsubscribe(chUrl); });
+        menu.addSeparator();
+        share::addActions(&menu, chUrl);
+        menu.exec(globalPos);
+    });
+
     auto* ioRow = new QHBoxLayout;
     ioRow->setContentsMargins(6, 6, 6, 6);
     auto* importBtn = new QPushButton(QIcon::fromTheme(QStringLiteral("document-import")),
@@ -282,22 +299,9 @@ void SubscriptionsPage::refresh() {
         auto* item = new QListWidgetItem(channels_);
         item->setData(kUrlRole, s.channelUrl);
         item->setSizeHint(QSize(0, 46));
+        const QString chUrl = s.channelUrl;
 
         auto* row = new QWidget(channels_);
-        const QString chUrl = s.channelUrl;
-        const QString chName = s.channelName;
-        row->setContextMenuPolicy(Qt::CustomContextMenu);
-        connect(row, &QWidget::customContextMenuRequested, this,
-                [this, row, chUrl, chName](const QPoint& p) {
-                    QMenu menu(this);
-                    menu.addAction(tr("&Open Channel"),
-                                   [this, chUrl] { emit channelRequested(chUrl); });
-                    menu.addAction(QIcon::fromTheme(QStringLiteral("list-remove")),
-                                   tr("&Unsubscribe"), [this, chUrl] { db_->unsubscribe(chUrl); });
-                    menu.addSeparator();
-                    share::addActions(&menu, chUrl);
-                    menu.exec(row->mapToGlobal(p));
-                });
         auto* h = new QHBoxLayout(row);
         h->setContentsMargins(6, 4, 4, 4);
         h->setSpacing(8);
