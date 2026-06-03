@@ -91,7 +91,7 @@ private:
     void updateSponsorState(double pos);       // auto-skip / show the manual prompt
     void beginRevert(int index);               // offer to undo a skip (Enter)
     void onSponsorEnter();                      // Enter: manual-skip or revert
-    void showSkipToast(const QString& text);
+    void showSkipToast(const QString& text, int hideAfterMs = 4000);
     void revealControls();
     void hideControls();
     void showVideoContextMenu(const QPoint& pos);

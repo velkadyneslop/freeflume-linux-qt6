@@ -401,6 +401,11 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
     connect(toastTimer_, &QTimer::timeout, this, [this] {
         skipToast_->setVisible(false);
         pendingRevertIndex_ = -1;  // revert window closed
+        // The toast overlays the GL video widget. While paused, that widget
+        // isn't repainting, so just hiding the label leaves its stale pixels
+        // composited on screen — force a repaint to erase them.
+        if (video_) video_->update();
+        if (pipVideo_) pipVideo_->update();
     });
 
     // "Resume from …" banner (shown in the ask-resume mode); click to jump.
@@ -916,8 +921,8 @@ void PlayerPage::beginRevert(int index) {
     pendingRevertIndex_ = index;
     skipPrompt_->setVisible(false);
     showSkipToast(tr("⏭  Skipped %1 — Enter to revert")
-                      .arg(sponsor::labelFor(segments_.at(index).category)));
-    toastTimer_->start(5000);  // revert window
+                      .arg(sponsor::labelFor(segments_.at(index).category)),
+                  5000);  // revert window
 }
 
 void PlayerPage::onSponsorEnter() {
@@ -940,12 +945,13 @@ void PlayerPage::onSponsorEnter() {
     }
 }
 
-void PlayerPage::showSkipToast(const QString& text) {
+void PlayerPage::showSkipToast(const QString& text, int hideAfterMs) {
     skipToast_->setText(text);
     skipToast_->adjustSize();
     skipToast_->move(video_->mapTo(this, QPoint(16, 16)));
     skipToast_->setVisible(true);
     skipToast_->raise();
+    toastTimer_->start(hideAfterMs);  // auto-hide; SponsorBlock passes its revert window
 }
 
 void PlayerPage::playNext() {
