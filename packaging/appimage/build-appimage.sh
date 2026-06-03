@@ -18,11 +18,10 @@ cmake -S /src -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD"
 cmake --install "$BUILD" --prefix "$APPDIR/usr"
 
-# Bundle yt-dlp so extraction works without a host install.
-mkdir -p "$APPDIR/usr/bin"
-wget -q -O "$APPDIR/usr/bin/yt-dlp" \
-    https://github.com/yt-dlp/yt-dlp/releases/download/2026.03.17/yt-dlp_linux
-chmod +x "$APPDIR/usr/bin/yt-dlp"
+# Note: yt-dlp is NOT bundled (its 35 MB binary would push the AppImage over
+# Codeberg's 100 MB release-asset limit, and a host yt-dlp stays up to date).
+# The app/mpv find it on the host PATH; the Flatpak is the fully self-contained
+# option.
 
 # Bundle Breeze icons (the app uses Breeze icon names everywhere). -a keeps the
 # theme's symlinks so it stays small. hicolor is the base theme Breeze inherits.
@@ -44,13 +43,25 @@ cd /tmp
 # Qt6's xcb plugin dlopens libxcb-cursor, so linuxdeploy won't catch it — bundle
 # it explicitly or the app won't start on hosts lacking it.
 chmod +x /src/packaging/appimage/AppRun
+# Bundle (no --output); we package separately with xz for a smaller file.
 linuxdeploy --appdir "$APPDIR" --plugin qt \
     --library /usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0 \
     --custom-apprun /src/packaging/appimage/AppRun \
     --desktop-file "$APPDIR/usr/share/applications/org.freeflume.Desktop.desktop" \
-    --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/freeflume.png" \
-    --output appimage
+    --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/freeflume.png"
+
+# Trim ffmpeg speech synthesis (flite) + recognition (sphinx) libs — only used
+# by libavfilter filters we never invoke — to fit Codeberg's 100 MB limit.
+# They're NEEDED but lazy-bound, so drop the NEEDED entries then delete the libs.
+AVF="$(readlink -f "$APPDIR/usr/lib/libavfilter.so.9")"
+for f in "$APPDIR"/usr/lib/libflite*.so* "$APPDIR"/usr/lib/libsphinxbase*.so* \
+         "$APPDIR"/usr/lib/libpocketsphinx*.so*; do
+    [ -e "$f" ] || continue
+    patchelf --remove-needed "$(basename "$f")" "$AVF" 2>/dev/null || true
+    rm -f "$f"
+done
 
 mkdir -p /src/Linux-Release
-mv /tmp/FreeFlume*.AppImage /src/Linux-Release/FreeFlume-1.0.0-x86_64.AppImage
+appimagetool --comp zstd --mksquashfs-opt -Xcompression-level --mksquashfs-opt 22 \
+    "$APPDIR" /src/Linux-Release/FreeFlume-1.0.0-x86_64.AppImage
 echo "DONE: $(ls -lh /src/Linux-Release/FreeFlume-1.0.0-x86_64.AppImage)"
