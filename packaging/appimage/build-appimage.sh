@@ -31,6 +31,15 @@ for theme in breeze breeze-dark hicolor; do
     [ -d "/usr/share/icons/$theme" ] && cp -a "/usr/share/icons/$theme" "$APPDIR/usr/share/icons/"
 done
 
+# linuxdeploy-plugin-qt doesn't bundle the iconengines category, but the SVG
+# icon engine is required to render Breeze's SVG icons. Drop it in by hand
+# (linuxdeploy then patches its RUNPATH; libQt6Svg is already bundled).
+QT_PLUGINS_DIR="$(qmake6 -query QT_INSTALL_PLUGINS)"
+mkdir -p "$APPDIR/usr/plugins/iconengines"
+cp "$QT_PLUGINS_DIR/iconengines/libqsvgicon.so" "$APPDIR/usr/plugins/iconengines/"
+# linuxdeploy won't patch a file we add, so point it at the bundled libs itself.
+patchelf --set-rpath '$ORIGIN/../../lib' "$APPDIR/usr/plugins/iconengines/libqsvgicon.so"
+
 cd /tmp
 # Qt6's xcb plugin dlopens libxcb-cursor, so linuxdeploy won't catch it — bundle
 # it explicitly or the app won't start on hosts lacking it.

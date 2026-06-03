@@ -5,9 +5,10 @@ FROM docker.io/library/ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build pkg-config file ca-certificates wget \
+        build-essential cmake ninja-build pkg-config file ca-certificates wget patchelf \
         qt6-base-dev qt6-base-dev-tools libqt6opengl6-dev \
         libqt6sql6-sqlite qt6-qpa-plugins \
+        libqt6svg6 \
         libmpv-dev \
         libgl1-mesa-dev libegl1-mesa-dev \
         libxcb-cursor0 \
