@@ -7,8 +7,10 @@ export QMAKE=/usr/bin/qmake6
 export ARCH=x86_64
 export VERSION=1.0.0
 export NO_STRIP=1
-# Bundle the offscreen plugin too (headless testing; harmless otherwise).
-export EXTRA_PLATFORM_PLUGINS="libqoffscreen.so"
+# Bundle the offscreen plugin (headless testing) and the Wayland platform
+# plugins so the app runs as a native Wayland client instead of via XWayland.
+# linuxdeploy-plugin-qt pulls in the supporting wayland-* integration plugins.
+export EXTRA_PLATFORM_PLUGINS="libqoffscreen.so;libqwayland-generic.so;libqwayland-egl.so"
 
 BUILD=/tmp/build-appimage
 APPDIR=/tmp/AppDir
