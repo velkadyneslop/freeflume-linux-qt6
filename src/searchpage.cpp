@@ -168,7 +168,6 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     typeFilter_->addItem(tr("Video"), 1);
     typeFilter_->addItem(tr("Channel"), 2);
     typeFilter_->addItem(tr("Playlist"), 3);
-    typeFilter_->addItem(tr("Movie"), 4);
     durationFilter_ = new QComboBox(filterBar_);
     durationFilter_->addItem(tr("Any length"), 0);
     durationFilter_->addItem(tr("Under 4 min"), 1);
