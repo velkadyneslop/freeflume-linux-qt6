@@ -4,6 +4,11 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusReply>
+#include <QDBusVariant>
+#include <QIcon>
 #include <QPalette>
 #include <QSettings>
 #include <QStyle>
@@ -12,6 +17,43 @@
 
 namespace theme {
 namespace {
+
+// Running as an AppImage? Then Qt has no desktop integration, so we bundle the
+// Breeze icons + pick the style/scheme ourselves. Native/Flatpak get this from
+// the host/runtime and must be left alone.
+bool inAppImage() {
+    return qEnvironmentVariableIsSet("FREEFLUME_APPIMAGE") ||
+           qEnvironmentVariableIsSet("APPIMAGE");
+}
+
+// Ask the freedesktop appearance portal whether the host prefers dark (works on
+// KDE + GNOME). 1 = dark, 2 = light, 0 = no preference.
+bool systemPrefersDark() {
+    QDBusInterface portal(QStringLiteral("org.freedesktop.portal.Desktop"),
+                          QStringLiteral("/org/freedesktop/portal/desktop"),
+                          QStringLiteral("org.freedesktop.portal.Settings"),
+                          QDBusConnection::sessionBus());
+    for (const char* method : {"ReadOne", "Read"}) {
+        QDBusReply<QDBusVariant> reply =
+            portal.call(QString::fromLatin1(method), QStringLiteral("org.freedesktop.appearance"),
+                        QStringLiteral("color-scheme"));
+        if (reply.isValid()) {
+            return reply.value().variant().toUInt() == 1;
+        }
+    }
+    return false;
+}
+
+// In the AppImage, select the bundled Breeze theme so fromTheme() resolves and
+// the icons match the light/dark look. No-op natively.
+void applyBundledIconTheme(bool dark) {
+    if (!inAppImage()) {
+        return;
+    }
+    const QString name = dark ? QStringLiteral("breeze-dark") : QStringLiteral("breeze");
+    QIcon::setThemeName(name);
+    QIcon::setFallbackThemeName(name);
+}
 // The platform's default style key, captured before any override so we can
 // restore "native" at runtime.
 QString defaultStyleKey() {
@@ -72,30 +114,44 @@ void applyColorScheme(const QString& mode) {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
     QStyleHints* hints = QApplication::styleHints();
 #endif
+    bool dark = false;
     if (mode == QLatin1String("light")) {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
         hints->setColorScheme(Qt::ColorScheme::Light);
 #endif
         QApplication::setPalette(lightPalette());
+        dark = false;
     } else if (mode == QLatin1String("dark")) {
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
         hints->setColorScheme(Qt::ColorScheme::Dark);
 #endif
         QApplication::setPalette(darkPalette());
+        dark = true;
+    } else if (inAppImage()) {
+        // No desktop integration in the AppImage — follow the host via the
+        // appearance portal and apply our own palette.
+        dark = systemPrefersDark();
+        QApplication::setPalette(dark ? darkPalette() : lightPalette());
     } else {
-        // Follow the system: drop our override and restore the platform palette.
+        // Native/Flatpak: drop our override and let the platform follow the system.
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
         hints->setColorScheme(Qt::ColorScheme::Unknown);
 #endif
         QApplication::setPalette(defaultPalette());
+        dark = QApplication::palette().color(QPalette::Window).lightness() < 128;
     }
+    applyBundledIconTheme(dark);
 }
 
 void applyStyle(const QString& styleName) {
-    const QString target =
-        (styleName.isEmpty() || styleName == QLatin1String("native"))
-            ? defaultStyleKey()
-            : styleName;
+    QString target;
+    if (styleName.isEmpty() || styleName == QLatin1String("native")) {
+        // The AppImage has no native KDE style, so default to Fusion for a clean,
+        // consistent look; everywhere else keep the platform default (Breeze on KDE).
+        target = inAppImage() ? QStringLiteral("Fusion") : defaultStyleKey();
+    } else {
+        target = styleName;
+    }
     if (QStyle* s = QStyleFactory::create(target)) {
         QApplication::setStyle(s);
     }

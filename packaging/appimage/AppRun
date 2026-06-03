@@ -4,4 +4,8 @@
 # is needed here.
 HERE="$(dirname "$(readlink -f "${0}")")"
 export PATH="${HERE}/usr/bin:${PATH}"
+# Make the bundled Breeze icon theme discoverable, and flag that we're running
+# bundled so the app picks the theme/style itself (no KDE integration here).
+export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export FREEFLUME_APPIMAGE=1
 exec "${HERE}/usr/bin/freeflume" "$@"

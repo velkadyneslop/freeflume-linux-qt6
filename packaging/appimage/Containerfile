@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libmpv-dev \
         libgl1-mesa-dev libegl1-mesa-dev \
         libxcb-cursor0 \
+        breeze-icon-theme hicolor-icon-theme \
     && rm -rf /var/lib/apt/lists/*
 
 # linuxdeploy + Qt plugin + appimagetool (run with APPIMAGE_EXTRACT_AND_RUN=1,

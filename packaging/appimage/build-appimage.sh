@@ -24,6 +24,13 @@ wget -q -O "$APPDIR/usr/bin/yt-dlp" \
     https://github.com/yt-dlp/yt-dlp/releases/download/2026.03.17/yt-dlp_linux
 chmod +x "$APPDIR/usr/bin/yt-dlp"
 
+# Bundle Breeze icons (the app uses Breeze icon names everywhere). -a keeps the
+# theme's symlinks so it stays small. hicolor is the base theme Breeze inherits.
+mkdir -p "$APPDIR/usr/share/icons"
+for theme in breeze breeze-dark hicolor; do
+    [ -d "/usr/share/icons/$theme" ] && cp -a "/usr/share/icons/$theme" "$APPDIR/usr/share/icons/"
+done
+
 cd /tmp
 # Qt6's xcb plugin dlopens libxcb-cursor, so linuxdeploy won't catch it — bundle
 # it explicitly or the app won't start on hosts lacking it.
