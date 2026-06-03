@@ -44,8 +44,26 @@ MpvWidget::MpvWidget(QWidget* parent) : QOpenGLWidget(parent) {
     // (see applySubtitleSettings). Don't auto-show them on load.
     mpv_set_option_string(mpv_, "sub-auto", "no");
     mpv_set_option_string(mpv_, "vo", "libmpv");
-    const bool hwdec = QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/hwdec"), true).toBool();
-    mpv_set_option_string(mpv_, "hwdec", hwdec ? "auto-safe" : "no");
+    // Hardware decoding. We render through the libmpv GL render API into a
+    // QOpenGLWidget, whose context can't do zero-copy GPU interop on every
+    // platform (e.g. GLX/XWayland), and there mpv silently falls back to
+    // software — which chugs on 4K/1440p AV1/VP9. "auto-copy" decodes on the
+    // GPU and copies frames back to RAM for upload, so it engages HW decode
+    // regardless of interop (the copy is cheap next to software AV1). Power
+    // users can override with an explicit mpv mode (e.g. "vaapi" for zero-copy)
+    // by setting playback/hwdec to that string in the config.
+    const QString hwv = QSettings(apppaths::configFile(), QSettings::IniFormat)
+                            .value(QStringLiteral("playback/hwdec"), QStringLiteral("true"))
+                            .toString().trimmed();
+    QString hwdec;
+    if (hwv.compare(QLatin1String("true"), Qt::CaseInsensitive) == 0 || hwv == QLatin1String("1")) {
+        hwdec = QStringLiteral("auto-copy");
+    } else if (hwv.compare(QLatin1String("false"), Qt::CaseInsensitive) == 0 || hwv == QLatin1String("0")) {
+        hwdec = QStringLiteral("no");
+    } else {
+        hwdec = hwv;  // explicit mpv hwdec mode from the config
+    }
+    mpv_set_option_string(mpv_, "hwdec", hwdec.toUtf8().constData());
     mpv_set_option_string(mpv_, "keep-open", "yes");
 
     if (mpv_initialize(mpv_) < 0) {
