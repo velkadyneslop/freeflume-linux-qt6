@@ -50,16 +50,39 @@ linuxdeploy --appdir "$APPDIR" --plugin qt \
     --desktop-file "$APPDIR/usr/share/applications/org.freeflume.Desktop.desktop" \
     --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/freeflume.png"
 
-# Trim ffmpeg speech synthesis (flite) + recognition (sphinx) libs — only used
-# by libavfilter filters we never invoke — to fit Codeberg's 100 MB limit.
-# They're NEEDED but lazy-bound, so drop the NEEDED entries then delete the libs.
-AVF="$(readlink -f "$APPDIR/usr/lib/libavfilter.so.9")"
-for f in "$APPDIR"/usr/lib/libflite*.so* "$APPDIR"/usr/lib/libsphinxbase*.so* \
-         "$APPDIR"/usr/lib/libpocketsphinx*.so*; do
-    [ -e "$f" ] || continue
-    patchelf --remove-needed "$(basename "$f")" "$AVF" 2>/dev/null || true
-    rm -f "$f"
-done
+# Slim the bundle to fit Codeberg's 100 MB limit: ffmpeg's flite (speech synth,
+# ~20 MB of voice data) and sphinx (speech recognition) libs are only used by
+# libavfilter filters we never invoke. Ubuntu builds with -z now, so libavfilter
+# resolves their symbols at load and we can't just delete them — instead replace
+# each lib with a tiny stub that exports the same symbols as no-ops.
+LIB="$APPDIR/usr/lib"
+cat > /tmp/flite_stub.c <<'CEOF'
+long flite_init(){return 0;}  long flite_text_to_wave(){return 0;}  long delete_wave(){return 0;}
+void *register_cmu_us_awb(){return 0;}   void unregister_cmu_us_awb(){}
+void *register_cmu_us_kal(){return 0;}   void unregister_cmu_us_kal(){}
+void *register_cmu_us_kal16(){return 0;} void unregister_cmu_us_kal16(){}
+void *register_cmu_us_rms(){return 0;}   void unregister_cmu_us_rms(){}
+void *register_cmu_us_slt(){return 0;}   void unregister_cmu_us_slt(){}
+CEOF
+cat > /tmp/sphinx_stub.c <<'CEOF'
+long cmd_ln_free_r(){return 0;}  long cmd_ln_parse_r(){return 0;}
+long ps_args(){return 0;}  long ps_default_search_args(){return 0;}
+long ps_init(){return 0;}  long ps_free(){return 0;}
+long ps_start_utt(){return 0;}  long ps_end_utt(){return 0;}
+long ps_process_raw(){return 0;}  long ps_get_hyp(){return 0;}  long ps_get_in_speech(){return 0;}
+CEOF
+stub_replace() {  # $1 = filename glob, $2 = stub source
+    for f in "$LIB"/$1; do
+        [ -e "$f" ] || continue
+        real="$(readlink -f "$f")"
+        son="$(patchelf --print-soname "$real" 2>/dev/null)"
+        [ -n "$son" ] || son="$(basename "$real")"
+        gcc -shared -fPIC -Wl,-soname,"$son" -o "$real" "$2"
+    done
+}
+stub_replace "libflite*.so*" /tmp/flite_stub.c
+stub_replace "libsphinxbase.so*" /tmp/sphinx_stub.c
+stub_replace "libpocketsphinx.so*" /tmp/sphinx_stub.c
 
 mkdir -p /src/Linux-Release
 appimagetool --comp zstd --mksquashfs-opt -Xcompression-level --mksquashfs-opt 22 \
