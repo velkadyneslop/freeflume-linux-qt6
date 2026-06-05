@@ -26,6 +26,23 @@ void* getProcAddress(void* /*ctx*/, const char* name) {
     return reinterpret_cast<void*>(glctx->getProcAddress(QByteArray(name)));
 }
 
+// The configured hardware-decoding mode as an mpv hwdec value. Legacy bool:
+// true → auto-copy (HW decode + copy to RAM; works everywhere), false → no.
+// Anything else ("auto-copy", "vaapi", …) passes through, so the Settings combo
+// can offer zero-copy ("vaapi") for much lighter 4K on a VA-API + EGL session.
+QString resolveHwdec() {
+    const QString hwv = QSettings(apppaths::configFile(), QSettings::IniFormat)
+                            .value(QStringLiteral("playback/hwdec"), QStringLiteral("auto-copy"))
+                            .toString().trimmed();
+    if (hwv.compare(QLatin1String("true"), Qt::CaseInsensitive) == 0 || hwv == QLatin1String("1")) {
+        return QStringLiteral("auto-copy");
+    }
+    if (hwv.compare(QLatin1String("false"), Qt::CaseInsensitive) == 0 || hwv == QLatin1String("0")) {
+        return QStringLiteral("no");
+    }
+    return hwv;
+}
+
 }  // namespace
 
 MpvWidget::MpvWidget(QWidget* parent) : QOpenGLWidget(parent) {
@@ -44,26 +61,11 @@ MpvWidget::MpvWidget(QWidget* parent) : QOpenGLWidget(parent) {
     // (see applySubtitleSettings). Don't auto-show them on load.
     mpv_set_option_string(mpv_, "sub-auto", "no");
     mpv_set_option_string(mpv_, "vo", "libmpv");
-    // Hardware decoding. We render through the libmpv GL render API into a
-    // QOpenGLWidget, whose context can't do zero-copy GPU interop on every
-    // platform (e.g. GLX/XWayland), and there mpv silently falls back to
-    // software — which chugs on 4K/1440p AV1/VP9. "auto-copy" decodes on the
-    // GPU and copies frames back to RAM for upload, so it engages HW decode
-    // regardless of interop (the copy is cheap next to software AV1). Power
-    // users can override with an explicit mpv mode (e.g. "vaapi" for zero-copy)
-    // by setting playback/hwdec to that string in the config.
-    const QString hwv = QSettings(apppaths::configFile(), QSettings::IniFormat)
-                            .value(QStringLiteral("playback/hwdec"), QStringLiteral("true"))
-                            .toString().trimmed();
-    QString hwdec;
-    if (hwv.compare(QLatin1String("true"), Qt::CaseInsensitive) == 0 || hwv == QLatin1String("1")) {
-        hwdec = QStringLiteral("auto-copy");
-    } else if (hwv.compare(QLatin1String("false"), Qt::CaseInsensitive) == 0 || hwv == QLatin1String("0")) {
-        hwdec = QStringLiteral("no");
-    } else {
-        hwdec = hwv;  // explicit mpv hwdec mode from the config
-    }
-    mpv_set_option_string(mpv_, "hwdec", hwdec.toUtf8().constData());
+    // Hardware decoding (mode from Settings; re-applied per video in play()).
+    // "auto-copy" decodes on the GPU and copies frames to RAM, engaging HW
+    // decode even where the GL context can't do zero-copy interop; "vaapi" is
+    // true zero-copy (much lighter for 4K) where VA-API + EGL is available.
+    mpv_set_option_string(mpv_, "hwdec", resolveHwdec().toUtf8().constData());
     mpv_set_option_string(mpv_, "keep-open", "yes");
 
     if (mpv_initialize(mpv_) < 0) {
@@ -81,6 +83,16 @@ MpvWidget::MpvWidget(QWidget* parent) : QOpenGLWidget(parent) {
 
     // Marshal mpv's wakeup (any thread) onto the GUI thread.
     mpv_set_wakeup_callback(mpv_, &MpvWidget::onWakeup, this);
+
+    // With ADVANCED_CONTROL the render API must be told when a frame was
+    // actually presented, or its frame-timing accounting drifts and video
+    // rendering stalls after a while (while audio keeps playing). QOpenGLWidget
+    // emits frameSwapped after each composite — report it to mpv.
+    connect(this, &QOpenGLWidget::frameSwapped, this, [this] {
+        if (renderCtx_) {
+            mpv_render_context_report_swap(renderCtx_);
+        }
+    });
 }
 
 MpvWidget::~MpvWidget() {
@@ -280,6 +292,7 @@ void MpvWidget::setOption(const QString& name, const QString& value) {
 void MpvWidget::play(const QString& url, double startSeconds) {
     currentUrl_ = url;
     pendingSeek_ = startSeconds;  // applied once the file is loaded
+    setOption(QStringLiteral("hwdec"), resolveHwdec());  // pick up a changed setting
     applySubtitleSettings();  // fetch/style captions per the latest settings
     command({QStringLiteral("loadfile"), url});
     setPaused(false);

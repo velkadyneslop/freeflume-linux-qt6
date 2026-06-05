@@ -31,7 +31,7 @@ private:
     QComboBox* style_ = nullptr;
     QComboBox* quality_ = nullptr;
     QSpinBox* volume_ = nullptr;
-    QCheckBox* hwdec_ = nullptr;
+    QComboBox* hwdecMode_ = nullptr;
     QCheckBox* autoplayNext_ = nullptr;
     QCheckBox* miniPlayer_ = nullptr;
     QComboBox* resumeMode_ = nullptr;

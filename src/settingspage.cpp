@@ -82,7 +82,16 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     volume_ = new QSpinBox(playback);
     volume_->setRange(0, 130);
     volume_->setSuffix(QStringLiteral(" %"));
-    hwdec_ = new QCheckBox(tr("Use hardware decoding when available"), playback);
+    hwdecMode_ = new QComboBox(playback);
+    hwdecMode_->addItem(tr("Automatic (recommended)"), QStringLiteral("auto-copy"));
+    hwdecMode_->addItem(tr("Zero-copy (VA-API) — best for 4K, needs a GPU + Wayland"),
+                        QStringLiteral("vaapi"));
+    hwdecMode_->addItem(tr("Off (software decoding)"), QStringLiteral("no"));
+    hwdecMode_->setToolTip(
+        tr("Automatic decodes on the GPU and copies frames to memory — works "
+           "everywhere. Zero-copy keeps frames on the GPU (much lighter for 4K) "
+           "but needs VA-API + an EGL context (typically a Wayland session). "
+           "Takes effect on the next video."));
     autoplayNext_ = new QCheckBox(tr("Autoplay next video in a playlist"), playback);
     miniPlayer_ = new QCheckBox(tr("Keep playing in a mini-player when navigating away"),
                                 playback);
@@ -93,7 +102,7 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     pForm->addRow(tr("Preferred video quality:"), quality_);
     pForm->addRow(tr("Default volume:"), volume_);
     pForm->addRow(tr("When reopening a video:"), resumeMode_);
-    pForm->addRow(QString(), hwdec_);
+    pForm->addRow(tr("Hardware decoding:"), hwdecMode_);
     pForm->addRow(QString(), autoplayNext_);
     pForm->addRow(QString(), miniPlayer_);
     col->addWidget(playback);
@@ -289,7 +298,7 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     });
     connect(quality_, &QComboBox::currentIndexChanged, this, [this] { save(); });
     connect(volume_, &QSpinBox::valueChanged, this, [this] { save(); });
-    connect(hwdec_, &QCheckBox::toggled, this, [this] { save(); });
+    connect(hwdecMode_, &QComboBox::currentIndexChanged, this, [this] { save(); });
     connect(autoplayNext_, &QCheckBox::toggled, this, [this] { save(); });
     connect(miniPlayer_, &QCheckBox::toggled, this, [this] { save(); });
     connect(resumeMode_, &QComboBox::currentIndexChanged, this, [this] { save(); });
@@ -391,7 +400,18 @@ void SettingsPage::load() {
                                     QStringLiteral("Auto")).toString();
     quality_->setCurrentIndex(qMax(0, quality_->findText(quality)));
     volume_->setValue(s.value(QStringLiteral("playback/volume"), 100).toInt());
-    hwdec_->setChecked(s.value(QStringLiteral("playback/hwdec"), true).toBool());
+    {
+        // Migrate the legacy bool (true → auto-copy, false → off) to a mode.
+        QString hw = s.value(QStringLiteral("playback/hwdec"), QStringLiteral("auto-copy"))
+                         .toString().trimmed();
+        if (hw.compare(QLatin1String("true"), Qt::CaseInsensitive) == 0 || hw == QLatin1String("1")) {
+            hw = QStringLiteral("auto-copy");
+        } else if (hw.compare(QLatin1String("false"), Qt::CaseInsensitive) == 0 || hw == QLatin1String("0")) {
+            hw = QStringLiteral("no");
+        }
+        const int idx = hwdecMode_->findData(hw);
+        hwdecMode_->setCurrentIndex(idx >= 0 ? idx : 0);
+    }
     autoplayNext_->setChecked(s.value(QStringLiteral("playback/autoplayNext"), true).toBool());
     miniPlayer_->setChecked(s.value(QStringLiteral("playback/miniPlayer"), true).toBool());
     resumeMode_->setCurrentIndex(qMax(0, resumeMode_->findData(
@@ -476,7 +496,7 @@ void SettingsPage::save() {
     s.setValue(QStringLiteral("appearance/style"), style_->currentData());
     s.setValue(QStringLiteral("playback/quality"), quality_->currentText());
     s.setValue(QStringLiteral("playback/volume"), volume_->value());
-    s.setValue(QStringLiteral("playback/hwdec"), hwdec_->isChecked());
+    s.setValue(QStringLiteral("playback/hwdec"), hwdecMode_->currentData());
     s.setValue(QStringLiteral("playback/autoplayNext"), autoplayNext_->isChecked());
     s.setValue(QStringLiteral("playback/miniPlayer"), miniPlayer_->isChecked());
     s.setValue(QStringLiteral("playback/resumeMode"), resumeMode_->currentData());
