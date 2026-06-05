@@ -146,7 +146,6 @@ private:
     QToolButton* infoBtn_ = nullptr;
     QToolButton* queueBtn_ = nullptr;
     QToolButton* ccBtn_ = nullptr;
-    QToolButton* audioBtn_ = nullptr;
     QToolButton* speedBtn_ = nullptr;
     QToolButton* loopBtn_ = nullptr;
     QToolButton* screenshotBtn_ = nullptr;

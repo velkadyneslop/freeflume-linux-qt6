@@ -408,14 +408,6 @@ QList<MpvTrack> MpvWidget::tracksOfType(const char* type) const {
     return tracks;
 }
 
-QList<MpvTrack> MpvWidget::audioTracks() const {
-    return tracksOfType("audio");
-}
-
-void MpvWidget::setAudioTrack(int id) {
-    setOption(QStringLiteral("aid"), QString::number(id));
-}
-
 QList<MpvTrack> MpvWidget::subtitleTracks() const {
     return tracksOfType("sub");
 }

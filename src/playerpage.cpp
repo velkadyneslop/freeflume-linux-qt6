@@ -311,31 +311,6 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
         }
     });
 
-    // Audio track selector (popup menu of available audio tracks).
-    audioBtn_ = new QToolButton(transportBar_);
-    audioBtn_->setIcon(QIcon::fromTheme(QStringLiteral("audio-x-generic")));
-    audioBtn_->setToolTip(tr("Audio track"));
-    audioBtn_->setAutoRaise(true);
-    audioBtn_->setFocusPolicy(Qt::NoFocus);
-    audioBtn_->setPopupMode(QToolButton::InstantPopup);
-    auto* audioMenu = new QMenu(audioBtn_);
-    audioBtn_->setMenu(audioMenu);
-    connect(audioMenu, &QMenu::aboutToShow, this, [this, audioMenu] {
-        audioMenu->clear();
-        const QList<MpvTrack> tracks = video_->audioTracks();
-        if (tracks.isEmpty()) {
-            audioMenu->addAction(tr("No audio tracks"))->setEnabled(false);
-            return;
-        }
-        for (const MpvTrack& t : tracks) {
-            QAction* a = audioMenu->addAction(t.label);
-            a->setCheckable(true);
-            a->setChecked(t.selected);
-            const int id = t.id;
-            connect(a, &QAction::triggered, this, [this, id] { video_->setAudioTrack(id); });
-        }
-    });
-
     // Playback speed selector.
     speedBtn_ = new QToolButton(transportBar_);
     speedBtn_->setText(QStringLiteral("1×"));
@@ -529,7 +504,6 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
     row->addWidget(loopBtn_);
     row->addWidget(pipBtn_);
     row->addWidget(screenshotBtn_);
-    row->addWidget(audioBtn_);
     row->addWidget(ccBtn_);
     row->addWidget(speedBtn_);
     row->addWidget(quality_);

@@ -56,9 +56,7 @@ public:
     // null image if nothing is playing.
     QImage grabCurrentFrame();
 
-    // Audio / subtitle tracks: enumerate and select (by track id; id <= 0 = off).
-    QList<MpvTrack> audioTracks() const;
-    void setAudioTrack(int id);
+    // Subtitle tracks: enumerate and select (by track id; id <= 0 = off).
     QList<MpvTrack> subtitleTracks() const;
     void setSubtitleTrack(int id);
 
