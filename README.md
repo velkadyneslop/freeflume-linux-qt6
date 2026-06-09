@@ -51,7 +51,7 @@ sudo pacman -S qt6-base mpv yt-dlp
 ./freeflume
 ```
 
-The AppImage and Flatpak builds bundle Qt and libmpv themselves.
+The Flatpak build bundles Qt, libmpv, and yt-dlp itself — nothing to install.
 
 ## Build
 
