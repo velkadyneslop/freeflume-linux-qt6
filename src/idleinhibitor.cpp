@@ -2,11 +2,16 @@
 
 #include <QDBusConnection>
 #include <QDBusInterface>
+#include <QDBusObjectPath>
 #include <QDBusReply>
+#include <QVariantMap>
 
 namespace {
 constexpr char kApp[] = "FreeFlume";
 constexpr char kReason[] = "Playing video";
+// XDG portal Inhibit flags: 4 = suspend, 8 = idle (screensaver/lock).
+constexpr unsigned int kFlagSuspend = 4;
+constexpr unsigned int kFlagIdle = 8;
 }  // namespace
 
 IdleInhibitor::~IdleInhibitor() {
@@ -26,6 +31,28 @@ void IdleInhibitor::setActive(bool on) {
 }
 
 void IdleInhibitor::acquire() {
+    // Preferred: the XDG desktop portal. Its compositor backend inhibits the
+    // real idle/lock on Wayland (which org.freedesktop.ScreenSaver doesn't reach
+    // on Plasma 6) and works in the Flatpak sandbox without extra permissions.
+    {
+        QDBusInterface portal(QStringLiteral("org.freedesktop.portal.Desktop"),
+                              QStringLiteral("/org/freedesktop/portal/desktop"),
+                              QStringLiteral("org.freedesktop.portal.Inhibit"),
+                              QDBusConnection::sessionBus());
+        if (portal.isValid()) {
+            QVariantMap options;
+            options.insert(QStringLiteral("reason"), QString::fromLatin1(kReason));
+            QDBusReply<QDBusObjectPath> reply =
+                portal.call(QStringLiteral("Inhibit"), QString(),
+                            kFlagSuspend | kFlagIdle, options);
+            if (reply.isValid()) {
+                portalRequest_ = reply.value().path();
+                return;  // portal handled it; skip the legacy fallback
+            }
+        }
+    }
+
+    // Fallback (no portal): the legacy screensaver + power-management inhibits.
     auto tryOne = [this](const char* service, const char* path, const char* iface) -> bool {
         QDBusInterface obj(QString::fromLatin1(service), QString::fromLatin1(path),
                            QString::fromLatin1(iface), QDBusConnection::sessionBus());
@@ -54,6 +81,13 @@ void IdleInhibitor::acquire() {
 }
 
 void IdleInhibitor::releaseAll() {
+    if (!portalRequest_.isEmpty()) {
+        QDBusInterface req(QStringLiteral("org.freedesktop.portal.Desktop"), portalRequest_,
+                           QStringLiteral("org.freedesktop.portal.Request"),
+                           QDBusConnection::sessionBus());
+        req.call(QStringLiteral("Close"));
+        portalRequest_.clear();
+    }
     for (const Held& h : held_) {
         QDBusInterface obj(h.service, h.path, h.iface, QDBusConnection::sessionBus());
         obj.call(QStringLiteral("UnInhibit"), h.cookie);
