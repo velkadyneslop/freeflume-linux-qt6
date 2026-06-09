@@ -291,8 +291,12 @@ void MpvWidget::setOption(const QString& name, const QString& value) {
 
 void MpvWidget::play(const QString& url, double startSeconds) {
     currentUrl_ = url;
-    pendingSeek_ = startSeconds;  // applied once the file is loaded
+    pendingSeek_ = startSeconds;  // fallback; the file-load 'start' below is primary
     setOption(QStringLiteral("hwdec"), resolveHwdec());  // pick up a changed setting
+    // Bake the resume position into the file load itself, so it can't be raced by
+    // file init or eaten by a decoder reload (a separate seek-on-FILE_LOADED can).
+    setOption(QStringLiteral("start"),
+              startSeconds > 0 ? QString::number(startSeconds) : QStringLiteral("none"));
     applySubtitleSettings();  // fetch/style captions per the latest settings
     command({QStringLiteral("loadfile"), url});
     setPaused(false);
@@ -314,6 +318,8 @@ void MpvWidget::reload() {
         pos = 0.0;
     }
     pendingSeek_ = pos;
+    setOption(QStringLiteral("start"),
+              pos > 0 ? QString::number(pos) : QStringLiteral("none"));
     applySubtitleSettings();
     command({QStringLiteral("loadfile"), currentUrl_});
     setPaused(false);
