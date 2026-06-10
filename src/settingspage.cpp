@@ -76,7 +76,7 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     auto* playback = new QGroupBox(tr("Playback"), content);
     auto* pForm = new QFormLayout(playback);
     quality_ = new QComboBox(playback);
-    for (const char* q : {"Best", "Auto", "1080p", "720p", "480p", "360p"}) {
+    for (const char* q : {"Best", "Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p"}) {
         quality_->addItem(QString::fromUtf8(q));
     }
     volume_ = new QSpinBox(playback);

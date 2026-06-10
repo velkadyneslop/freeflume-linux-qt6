@@ -81,6 +81,8 @@ struct Quality {
 constexpr Quality kQualities[] = {
     {"Best", "bestvideo+bestaudio/best"},  // highest available incl. 4K/8K, 60fps
     {"Auto", "bestvideo*+bestaudio/best"},
+    {"2160p", "bestvideo[height<=2160]+bestaudio/best[height<=2160]/best"},
+    {"1440p", "bestvideo[height<=1440]+bestaudio/best[height<=1440]/best"},
     {"1080p", "bestvideo[height<=1080]+bestaudio/best[height<=1080]/best"},
     {"720p", "bestvideo[height<=720]+bestaudio/best[height<=720]/best"},
     {"480p", "bestvideo[height<=480]+bestaudio/best[height<=480]/best"},
@@ -1310,7 +1312,10 @@ void PlayerPage::enterPip() {
     // the video permanently, so we spin up a second mpv instance instead.
     pipWindow_ = new QWidget(nullptr, Qt::Window | Qt::WindowStaysOnTopHint);
     pipWindow_->setWindowTitle(tr("FreeFlume — Picture-in-Picture"));
-    pipWindow_->resize(480, 270);
+    const QSize pipSize = QSettings(apppaths::configFile(), QSettings::IniFormat)
+                              .value(QStringLiteral("playback/pipSize"), QSize(480, 270))
+                              .toSize();
+    pipWindow_->resize(pipSize.isValid() ? pipSize : QSize(480, 270));
     auto* lay = new QVBoxLayout(pipWindow_);
     lay->setContentsMargins(0, 0, 0, 0);
     pipVideo_ = new MpvWidget(pipWindow_);
@@ -1488,6 +1493,9 @@ void PlayerPage::exitPip() {
     pipActive_ = false;
     const double resumeAt = pipPos_;
     if (pipWindow_) {
+        // Remember the window size so PiP reopens where the user left it.
+        QSettings(apppaths::configFile(), QSettings::IniFormat)
+            .setValue(QStringLiteral("playback/pipSize"), pipWindow_->size());
         pipWindow_->removeEventFilter(this);
         pipWindow_->hide();
         pipWindow_->deleteLater();  // also destroys pipVideo_ + its controls
