@@ -192,6 +192,7 @@ void DetailPane::clear() {
 
 void DetailPane::showLoading(const QString& title) {
     current_ = {};
+    thumb_->setFixedSize(320, 180);  // 16:9 frame for a video
     title_->setEnabled(true);
     title_->setText(title.isEmpty() ? tr("Loading…") : title);
     channel_->clear();
@@ -205,6 +206,7 @@ void DetailPane::showLoading(const QString& title) {
 
 void DetailPane::showNote(const QString& title, const QString& note) {
     current_ = {};
+    thumb_->setFixedSize(320, 180);
     currentIsChannel_ = false;
     pendingThumbUrl_.clear();
     thumb_->clear();
@@ -220,6 +222,7 @@ void DetailPane::showNote(const QString& title, const QString& note) {
 
 void DetailPane::showChannel(const SearchResult& c) {
     current_ = {};
+    thumb_->setFixedSize(200, 200);  // square frame for a channel avatar
     currentIsChannel_ = true;
     current_.channel = c.title;     // a channel result's title is its name
     current_.channelUrl = c.url;    // and its url is the channel page
