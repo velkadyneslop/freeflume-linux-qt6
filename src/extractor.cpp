@@ -255,17 +255,31 @@ void Extractor::search(const QString& query, int page, int pageSize, bool richRe
             url += QStringLiteral("&sp=%1").arg(
                 QString::fromUtf8(QUrl::toPercentEncoding(QString::fromLatin1(buildSpParam(filters)))));
         }
-        runFlat(url, query, start, end);
+        runFlat({url}, query, start, end);
     } else {
         // ytsearchN fetches N results; slice the page from those.
-        runFlat(QStringLiteral("ytsearch%1:%2").arg(end).arg(query), query, start, end);
+        runFlat({QStringLiteral("ytsearch%1:%2").arg(end).arg(query)}, query, start, end);
     }
 }
 
 void Extractor::fetchChannel(const QString& channelUrl, int page, int pageSize) {
     const int start = (page - 1) * pageSize + 1;
     const int end = page * pageSize;
-    runFlat(channelToVideosTab(channelUrl), channelUrl, start, end);
+    QStringList targets;
+    // Page 1 of an actual channel also pulls its /streams tab (the /videos tab
+    // omits live streams). Currently-live streams have no duration, so they
+    // render as "LIVE" and sort to the top. Skip for playlists.
+    const bool channelLike = channelUrl.contains(QLatin1String("/channel/")) ||
+                             channelUrl.contains(QLatin1String("/@")) ||
+                             channelUrl.contains(QLatin1String("/c/")) ||
+                             channelUrl.contains(QLatin1String("/user/"));
+    const bool isPlaylist = channelUrl.contains(QLatin1String("list=")) ||
+                            channelUrl.contains(QLatin1String("/playlist"));
+    if (page == 1 && channelLike && !isPlaylist) {
+        targets << channelBaseUrl(channelUrl) + QStringLiteral("/streams");
+    }
+    targets << channelToVideosTab(channelUrl);
+    runFlat(targets, channelUrl, start, end);
 }
 
 void Extractor::searchInChannel(const QString& channelUrl, const QString& query, int page,
@@ -275,10 +289,10 @@ void Extractor::searchInChannel(const QString& channelUrl, const QString& query,
     const QString url = QStringLiteral("%1/search?query=%2")
                             .arg(channelBaseUrl(channelUrl),
                                  QString::fromUtf8(QUrl::toPercentEncoding(query)));
-    runFlat(url, channelUrl, start, end);
+    runFlat({url}, channelUrl, start, end);
 }
 
-void Extractor::runFlat(const QString& target, const QString& label, int start, int end) {
+void Extractor::runFlat(const QStringList& targets, const QString& label, int start, int end) {
     cancel();
     query_ = label;
 
@@ -287,7 +301,7 @@ void Extractor::runFlat(const QString& target, const QString& label, int start, 
             this, &Extractor::handleFinished);
     connect(proc_, &QProcess::errorOccurred, this, &Extractor::handleError);
 
-    const QStringList args = {
+    QStringList args = {
         QStringLiteral("--flat-playlist"),
         QStringLiteral("--dump-json"),
         QStringLiteral("--no-warnings"),
@@ -296,8 +310,8 @@ void Extractor::runFlat(const QString& target, const QString& label, int start, 
         QString::number(start),
         QStringLiteral("--playlist-end"),
         QString::number(end),
-        target,
     };
+    args += targets;  // one URL (search/single tab) or several (channel tabs), in order
 
     emit searchStarted(label);
     proc_->start(QStringLiteral("yt-dlp"), args);

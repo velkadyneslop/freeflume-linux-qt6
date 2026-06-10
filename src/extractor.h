@@ -131,7 +131,7 @@ signals:
     void playlistItemsReady(const QList<SearchResult>& items, const QString& url);
 
 private:
-    void runFlat(const QString& target, const QString& query, int start, int end);
+    void runFlat(const QStringList& targets, const QString& query, int start, int end);
     void handleFinished(int exitCode, QProcess::ExitStatus status);
     void handleError(QProcess::ProcessError error);
     void handleDetailsFinished(int exitCode, QProcess::ExitStatus status);
