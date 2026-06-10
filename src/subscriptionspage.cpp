@@ -14,8 +14,10 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QSplitter>
 #include <QStringList>
+#include <QTimer>
 #include <QToolButton>
 #include <QUrl>
 #include <QUrlQuery>
@@ -25,6 +27,7 @@
 #include "database.h"
 #include "hoverreveal.h"
 #include "listcontextmenu.h"
+#include "metaenricher.h"
 #include "sharemenu.h"
 #include "subscriptionfeed.h"
 #include "thumbnailloader.h"
@@ -206,6 +209,26 @@ SubscriptionsPage::SubscriptionsPage(Database* db, ThumbnailLoader* thumbs, QWid
         menu.exec(globalPos);
     });
 
+    // Live-channel ring: lazily check the live status of on-screen channels and
+    // draw a red ring on the avatar of any that are currently streaming.
+    liveScrollTimer_ = new QTimer(this);
+    liveScrollTimer_->setSingleShot(true);
+    liveScrollTimer_->setInterval(200);
+    connect(liveScrollTimer_, &QTimer::timeout, this, &SubscriptionsPage::enqueueVisibleLive);
+    connect(channels_->verticalScrollBar(), &QScrollBar::valueChanged, this,
+            [this] { liveScrollTimer_->start(); });
+    connect(MetaEnricher::instance(), &MetaEnricher::liveStatusReady, this,
+            [this](const QString& chUrl, bool live) {
+                QLabel* av = avatarByChannel_.value(chUrl);
+                if (!av) {
+                    return;
+                }
+                av->setStyleSheet(
+                    live ? QStringLiteral(
+                               "background:#2b2b2b;border:2px solid #ff3b30;border-radius:5px;")
+                         : QStringLiteral("background:#2b2b2b;border-radius:3px;"));
+            });
+
     auto* ioRow = new QHBoxLayout;
     ioRow->setContentsMargins(6, 6, 6, 6);
     auto* importBtn = new QPushButton(QIcon::fromTheme(QStringLiteral("document-import")),
@@ -272,6 +295,7 @@ void SubscriptionsPage::refresh() {
     }
     hoverGroup_->clear();  // drop references to the rows we're about to delete
     channels_->clear();
+    avatarByChannel_.clear();  // stale avatar labels from the previous build
     const QList<Subscription> subs = db_->subscriptions();
 
     if (!subs.isEmpty()) {  // "What's New" pseudo-row at the top
@@ -311,6 +335,7 @@ void SubscriptionsPage::refresh() {
         avatar->setFixedSize(36, 36);
         avatar->setAlignment(Qt::AlignCenter);
         avatar->setStyleSheet(QStringLiteral("background:#2b2b2b;border-radius:3px;"));
+        avatarByChannel_.insert(chUrl, avatar);  // for the lazy live-ring update
         avatar->setPixmap(QIcon::fromTheme(QStringLiteral("user-identity"),
                                            QIcon::fromTheme(QStringLiteral("system-users")))
                               .pixmap(22, 22));
@@ -353,6 +378,22 @@ void SubscriptionsPage::refresh() {
         videos_->setItems({});
     } else if (!channels_->currentItem()) {
         channels_->setCurrentRow(0);
+    }
+    // Defer so the list has laid out and visualItemRect() is meaningful.
+    QTimer::singleShot(0, this, &SubscriptionsPage::enqueueVisibleLive);
+}
+
+void SubscriptionsPage::enqueueVisibleLive() {
+    const QRect vp = channels_->viewport()->rect();
+    for (int i = 0; i < channels_->count(); ++i) {
+        QListWidgetItem* item = channels_->item(i);
+        const QString chUrl = item->data(kUrlRole).toString();
+        if (chUrl.isEmpty()) {
+            continue;  // the "What's New" pseudo-row
+        }
+        if (channels_->visualItemRect(item).intersects(vp)) {
+            MetaEnricher::instance()->requestLiveStatus(chUrl);
+        }
     }
 }
 

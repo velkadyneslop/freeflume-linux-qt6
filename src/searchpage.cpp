@@ -6,21 +6,29 @@
 
 #include <QAction>
 #include <QComboBox>
+#include <QDate>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QInputDialog>
 #include <QMenu>
+#include <QScrollBar>
 #include <QSignalBlocker>
+#include <QTimer>
 #include <QToolButton>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPen>
 #include <QPushButton>
 #include <QSettings>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QVBoxLayout>
 #include <QVariant>
+
+#include "metaenricher.h"
 
 #include "database.h"
 #include "detailpane.h"
@@ -74,7 +82,7 @@ QString formatViews(qint64 views) {
 
 // Builds the subtitle line, e.g. "Channel · 12:34 · 1.2M views" for a video,
 // or a "Channel"/"Playlist" badge for those result kinds.
-QString metaLine(const SearchResult& r) {
+QString metaLine(const SearchResult& r, const QString& uploadDate = {}) {
     if (r.kind == ResultKind::Channel) {
         return QStringLiteral("Channel  ·  double-click to view videos");
     }
@@ -94,7 +102,49 @@ QString metaLine(const SearchResult& r) {
     if (!views.isEmpty()) {
         parts << views;
     }
+    // Upload date (YYYYMMDD), once the background enricher has fetched it.
+    const QDate d = QDate::fromString(uploadDate, QStringLiteral("yyyyMMdd"));
+    if (d.isValid()) {
+        parts << d.toString(QStringLiteral("d MMM yyyy"));
+    }
     return parts.join(QStringLiteral("  ·  "));
+}
+
+// A channel avatar with a red "live" ring drawn tightly around it (square, not
+// the wide thumbnail cell).
+QPixmap ringedAvatar(const QPixmap& avatar, int side) {
+    QPixmap out(side, side);
+    out.fill(Qt::transparent);
+    QPainter p(&out);
+    p.setRenderHint(QPainter::Antialiasing);
+    const int ring = qMax(2, side / 18);
+    const qreal rad = side * 0.16;
+    const QRectF inner(ring, ring, side - 2.0 * ring, side - 2.0 * ring);
+    QPainterPath clip;
+    clip.addRoundedRect(inner, rad, rad);
+    p.setClipPath(clip);
+    p.drawPixmap(inner.toRect(), avatar.scaled(inner.size().toSize(),
+                                               Qt::KeepAspectRatioByExpanding,
+                                               Qt::SmoothTransformation));
+    p.setClipping(false);
+    QPen pen(QColor(0xff, 0x3b, 0x30), ring);
+    pen.setJoinStyle(Qt::RoundJoin);
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(QRectF(ring / 2.0, ring / 2.0, side - ring, side - ring), rad, rad);
+    p.end();
+    return out;
+}
+
+// Render a channel row's avatar with the live ring if it's currently live. The
+// base avatar + live flag are stashed as properties so either (async) update
+// re-renders correctly.
+void applyChannelAvatar(QLabel* thumb) {
+    const QPixmap base = thumb->property("baseAvatar").value<QPixmap>();
+    if (base.isNull()) {
+        return;
+    }
+    thumb->setPixmap(thumb->property("live").toBool() ? ringedAvatar(base, base.width()) : base);
 }
 
 bool kindEnabled(ResultKind kind, const QSettings& s) {
@@ -279,6 +329,37 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     ListContextMenu::install(list_, [this](QListWidgetItem* item, const QPoint& globalPos) {
         showContextMenu(item->data(kResultRole).value<SearchResult>(), globalPos);
     });
+
+    // Lazy upload-date enrichment for the rows the user actually scrolls to.
+    dateScrollTimer_ = new QTimer(this);
+    dateScrollTimer_->setSingleShot(true);
+    dateScrollTimer_->setInterval(200);
+    connect(dateScrollTimer_, &QTimer::timeout, this, &SearchPage::enqueueVisibleDates);
+    connect(list_->verticalScrollBar(), &QScrollBar::valueChanged, this,
+            [this] { dateScrollTimer_->start(); });
+    connect(MetaEnricher::instance(), &MetaEnricher::uploadDateReady, this,
+            [this](const QString& url, const QString& date) {
+                QLabel* lbl = metaByUrl_.value(url);
+                if (!lbl) {
+                    return;
+                }
+                for (int i = 0; i < list_->count(); ++i) {
+                    const SearchResult r = list_->item(i)->data(kResultRole).value<SearchResult>();
+                    if (r.url == url) {
+                        lbl->setText(metaLine(r, date));
+                        break;
+                    }
+                }
+                metaByUrl_.remove(url);
+            });
+    connect(MetaEnricher::instance(), &MetaEnricher::liveStatusReady, this,
+            [this](const QString& chUrl, bool live) {
+                QLabel* thumb = channelThumbByUrl_.value(chUrl);
+                if (thumb) {
+                    thumb->setProperty("live", live);
+                    applyChannelAvatar(thumb);  // re-render with/without the ring
+                }
+            });
 
     connect(prevBtn_, &QPushButton::clicked, this, [this] {
         if (currentPage_ > 1) {
@@ -684,6 +765,8 @@ void SearchPage::showMessage(const QString& text) {
 
 void SearchPage::populate(const QList<SearchResult>& allResults) {
     list_->clear();
+    metaByUrl_.clear();           // stale labels from the previous page
+    channelThumbByUrl_.clear();
 
     // Update the pager from the raw (pre-filter) count so paging through a page
     // that's been fully filtered out still works.
@@ -727,6 +810,9 @@ void SearchPage::populate(const QList<SearchResult>& allResults) {
         thumb->setAlignment(Qt::AlignCenter);
         thumb->setStyleSheet(isChannel ? QStringLiteral("background:transparent;")
                                        : QStringLiteral("background:#000;border-radius:4px;"));
+        if (isChannel) {
+            channelThumbByUrl_.insert(r.url, thumb);  // for the lazy live ring
+        }
         if (!r.thumbnailUrl.isEmpty()) {
             const QString url = r.thumbnailUrl;
             const WatchProgress wp = progress.value(r.url);
@@ -736,8 +822,10 @@ void SearchPage::populate(const QList<SearchResult>& allResults) {
                             return;
                         }
                         if (isChannel) {
-                            thumb->setPixmap(pm.scaled(QSize(64, 64), Qt::KeepAspectRatio,
-                                                       Qt::SmoothTransformation));
+                            const QPixmap base = pm.scaled(QSize(64, 64), Qt::KeepAspectRatio,
+                                                           Qt::SmoothTransformation);
+                            thumb->setProperty("baseAvatar", QVariant::fromValue(base));
+                            applyChannelAvatar(thumb);  // rings it if already known live
                         } else {
                             thumb->setPixmap(thumbdecor::apply(pm, thumb->size(), wp));
                         }
@@ -756,8 +844,15 @@ void SearchPage::populate(const QList<SearchResult>& allResults) {
         title->setFont(tf);
         title->setTextInteractionFlags(Qt::NoTextInteraction);
 
-        auto* meta = new QLabel(metaLine(r), row);
+        // Upload date: cached now if known, else registered for the lazy
+        // enricher to fill in (videos/shorts only — not channels/playlists).
+        const bool datable = r.kind == ResultKind::Video || r.kind == ResultKind::Short;
+        const QString cachedDate = (datable && db_) ? db_->cachedUploadDate(r.url) : QString();
+        auto* meta = new QLabel(metaLine(r, cachedDate), row);
         meta->setEnabled(false);  // muted
+        if (datable && cachedDate.isEmpty()) {
+            metaByUrl_.insert(r.url, meta);
+        }
 
         col->addWidget(title);
         col->addWidget(meta);
@@ -775,4 +870,26 @@ void SearchPage::populate(const QList<SearchResult>& allResults) {
     list_->setCurrentRow(0);
     onSelectionChanged();
     emit statusMessage(QStringLiteral("%1 results").arg(results.size()), 3000);
+    // Defer so the list has laid out and visualItemRect() is meaningful.
+    QTimer::singleShot(0, this, &SearchPage::enqueueVisibleDates);
+}
+
+void SearchPage::enqueueVisibleDates() {
+    if (metaByUrl_.isEmpty() && channelThumbByUrl_.isEmpty()) {
+        return;
+    }
+    const QRect vp = list_->viewport()->rect();
+    for (int i = 0; i < list_->count(); ++i) {
+        QListWidgetItem* item = list_->item(i);
+        if (!list_->visualItemRect(item).intersects(vp)) {
+            continue;  // off-screen — only fetch what the user actually sees
+        }
+        const SearchResult r = item->data(kResultRole).value<SearchResult>();
+        if (metaByUrl_.contains(r.url)) {
+            MetaEnricher::instance()->requestUploadDate(r.url);
+        }
+        if (r.kind == ResultKind::Channel && channelThumbByUrl_.contains(r.url)) {
+            MetaEnricher::instance()->requestLiveStatus(r.url);
+        }
+    }
 }

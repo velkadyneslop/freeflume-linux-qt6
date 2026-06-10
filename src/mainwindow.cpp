@@ -22,6 +22,7 @@
 #include <QWidget>
 
 #include "database.h"
+#include "metaenricher.h"
 #include "downloadmanager.h"
 #include "downloadspage.h"
 #include "sharemenu.h"
@@ -66,6 +67,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     const QString dataDir = apppaths::dataDir();
     db_ = new Database(this);
     db_->open(dataDir + QStringLiteral("/freeflume.db"));
+    MetaEnricher::instance()->setDatabase(db_);  // shared lazy row-date fetcher
 
     thumbs_ = new ThumbnailLoader(this);
     extractor_ = new Extractor(this);

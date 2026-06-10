@@ -1,17 +1,21 @@
 // FreeFlume — reusable video list implementation.
 #include "videolist.h"
 
+#include <QDate>
 #include <QDateTime>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
 #include <QListWidget>
 #include <QMenu>
+#include <QScrollBar>
 #include <QStackedWidget>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QVariant>
+
+#include "metaenricher.h"
 
 #include "database.h"
 #include "downloadmenu.h"
@@ -70,7 +74,7 @@ QString relativeTime(qint64 secs) {
     return QObject::tr("just now");
 }
 
-QString metaLine(const SearchResult& r) {
+QString metaLine(const SearchResult& r, const QString& uploadDate = {}) {
     QStringList parts;
     if (!r.channel.isEmpty()) parts << r.channel;
     if (r.published > 0) {  // feed item: show how long ago instead of duration/views
@@ -79,6 +83,9 @@ QString metaLine(const SearchResult& r) {
         parts << (r.isLive ? QStringLiteral("LIVE") : formatDuration(r.durationSeconds));
         const QString views = formatViews(r.viewCount);
         if (!views.isEmpty()) parts << views;
+        // Upload date (YYYYMMDD) once the background enricher has fetched it.
+        const QDate d = QDate::fromString(uploadDate, QStringLiteral("yyyyMMdd"));
+        if (d.isValid()) parts << d.toString(QStringLiteral("d MMM yyyy"));
     }
     return parts.join(QStringLiteral("  ·  "));
 }
@@ -139,6 +146,29 @@ VideoList::VideoList(ThumbnailLoader* thumbs, QWidget* parent)
     ListContextMenu::install(list_, [this](QListWidgetItem* item, const QPoint& globalPos) {
         showContextMenu(item->data(kResultRole).value<SearchResult>(), globalPos);
     });
+
+    // Lazy upload-date enrichment: fetch dates only for rows scrolled into view
+    // (debounced), and refresh the row's meta line when one arrives.
+    dateScrollTimer_ = new QTimer(this);
+    dateScrollTimer_->setSingleShot(true);
+    dateScrollTimer_->setInterval(200);
+    connect(dateScrollTimer_, &QTimer::timeout, this, &VideoList::enqueueVisibleDates);
+    connect(list_->verticalScrollBar(), &QScrollBar::valueChanged, this,
+            [this] { dateScrollTimer_->start(); });
+    connect(MetaEnricher::instance(), &MetaEnricher::uploadDateReady, this,
+            [this](const QString& url, const QString& date) {
+                QLabel* lbl = metaByUrl_.value(url);
+                if (!lbl) {
+                    return;
+                }
+                for (const SearchResult& r : data_) {
+                    if (r.url == url) {
+                        lbl->setText(metaLine(r, date));
+                        break;
+                    }
+                }
+                metaByUrl_.remove(url);
+            });
 }
 
 void VideoList::showContextMenu(const SearchResult& r, const QPoint& globalPos) {
@@ -195,6 +225,7 @@ void VideoList::setItems(const QList<SearchResult>& items) {
         hoverGroup_->clear();  // drop references to rows we're about to delete
     }
     data_ = items;
+    metaByUrl_.clear();  // stale labels from the previous list
     list_->clear();
     if (items.isEmpty()) {
         setPlaceholder(placeholder_->text().isEmpty() ? tr("Nothing here yet.")
@@ -238,8 +269,16 @@ void VideoList::setItems(const QList<SearchResult>& items) {
         QFont tf = title->font();
         tf.setBold(true);
         title->setFont(tf);
-        auto* meta = new QLabel(metaLine(r), row);
+        // Upload date: show it if already cached; otherwise register this row so
+        // the enricher can fill it in once it (lazily) fetches it. Only videos
+        // (not feed rows, which already show "X ago", nor channels/playlists).
+        const bool datable = r.kind == ResultKind::Video && r.published <= 0;
+        const QString cachedDate = (datable && db_) ? db_->cachedUploadDate(r.url) : QString();
+        auto* meta = new QLabel(metaLine(r, cachedDate), row);
         meta->setEnabled(false);
+        if (datable && cachedDate.isEmpty()) {
+            metaByUrl_.insert(r.url, meta);
+        }
         col->addWidget(title);
         col->addWidget(meta);
         col->addStretch();
@@ -266,4 +305,23 @@ void VideoList::setItems(const QList<SearchResult>& items) {
         list_->setItemWidget(item, row);
     }
     stack_->setCurrentIndex(1);
+    // Defer so the list has laid out and visualItemRect() is meaningful.
+    QTimer::singleShot(0, this, &VideoList::enqueueVisibleDates);
+}
+
+void VideoList::enqueueVisibleDates() {
+    if (metaByUrl_.isEmpty()) {
+        return;
+    }
+    const QRect vp = list_->viewport()->rect();
+    for (int i = 0; i < list_->count(); ++i) {
+        QListWidgetItem* item = list_->item(i);
+        if (!list_->visualItemRect(item).intersects(vp)) {
+            continue;  // off-screen — fetch only what the user actually sees
+        }
+        const QString url = item->data(kResultRole).value<SearchResult>().url;
+        if (metaByUrl_.contains(url)) {  // still awaiting a date
+            MetaEnricher::instance()->requestUploadDate(url);
+        }
+    }
 }

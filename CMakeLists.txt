@@ -34,6 +34,7 @@ add_executable(freeflume
     src/thumbnailloader.cpp
     src/detailpane.cpp
     src/database.cpp
+    src/metaenricher.cpp
     src/videolist.cpp
     src/historypage.cpp
     src/subscriptionspage.cpp

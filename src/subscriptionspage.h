@@ -1,6 +1,7 @@
 // FreeFlume — subscriptions page (channels + their recent videos).
 #pragma once
 
+#include <QHash>
 #include <QWidget>
 
 #include "extractor.h"
@@ -12,7 +13,9 @@ class HoverRevealGroup;
 class SubscriptionFeed;
 class ThumbnailLoader;
 class VideoList;
+class QLabel;
 class QListWidget;
+class QTimer;
 
 class SubscriptionsPage : public QWidget {
     Q_OBJECT
@@ -32,6 +35,7 @@ private:
     void loadFeed();
     void exportSubscriptions();
     void importSubscriptions();
+    void enqueueVisibleLive();  // check live status for on-screen channel avatars
 
     Database* db_;
     Extractor* extractor_;        // owned — dedicated to channel loading
@@ -40,4 +44,6 @@ private:
     QListWidget* channels_ = nullptr;
     VideoList* videos_ = nullptr;
     HoverRevealGroup* hoverGroup_ = nullptr;  // unsubscribe buttons, shown on hover
+    QHash<QString, QLabel*> avatarByChannel_;  // channel avatars, for the live ring
+    QTimer* liveScrollTimer_ = nullptr;        // debounces live checks on scroll
 };

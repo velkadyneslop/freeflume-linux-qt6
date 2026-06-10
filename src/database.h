@@ -52,6 +52,10 @@ public:
     WatchProgress progress(const QString& url) const;
     QHash<QString, WatchProgress> allProgress() const;
 
+    // ---- Cached video metadata (lazy background enrichment) ----
+    QString cachedUploadDate(const QString& url) const;  // "" if unknown
+    void cacheUploadDate(const QString& url, const QString& date);  // YYYYMMDD
+
     // ---- Search history ----
     void addSearch(const QString& query);
     QStringList searchHistory(int limit = 30) const;

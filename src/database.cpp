@@ -69,6 +69,28 @@ void Database::createSchema() {
                           " query TEXT PRIMARY KEY, searched_at INTEGER)"));
     // Cached YT channel id (UC…) for the What's New RSS feed.
     q.exec(QStringLiteral("ALTER TABLE subscriptions ADD COLUMN channel_id TEXT"));
+    // Cached upload dates (YYYYMMDD) from lazy background enrichment of rows.
+    q.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS meta_cache ("
+                          " url TEXT PRIMARY KEY, upload_date TEXT)"));
+}
+
+QString Database::cachedUploadDate(const QString& url) const {
+    QSqlQuery q(db_);
+    q.prepare(QStringLiteral("SELECT upload_date FROM meta_cache WHERE url = :u"));
+    q.bindValue(QStringLiteral(":u"), url);
+    if (q.exec() && q.next()) {
+        return q.value(0).toString();
+    }
+    return {};
+}
+
+void Database::cacheUploadDate(const QString& url, const QString& date) {
+    QSqlQuery q(db_);
+    q.prepare(QStringLiteral(
+        "INSERT OR REPLACE INTO meta_cache (url, upload_date) VALUES (:u, :d)"));
+    q.bindValue(QStringLiteral(":u"), url);
+    q.bindValue(QStringLiteral(":d"), date);
+    q.exec();
 }
 
 // ---- History ---------------------------------------------------------------

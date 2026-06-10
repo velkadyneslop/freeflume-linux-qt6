@@ -1,6 +1,7 @@
 // FreeFlume — search results page.
 #pragma once
 
+#include <QHash>
 #include <QWidget>
 
 #include "extractor.h"
@@ -19,6 +20,7 @@ class QStackedWidget;
 class QWidget;
 class QToolButton;
 class QAction;
+class QTimer;
 
 // Shows the state machine of a search: idle → searching → results / empty / error.
 // Owns nothing about extraction beyond a (non-owning) Extractor pointer.
@@ -60,6 +62,7 @@ private:
 
     void showMessage(const QString& text);
     void populate(const QList<SearchResult>& results);
+    void enqueueVisibleDates();  // lazily fetch upload dates for on-screen rows
     void onSelectionChanged();
     void fetchPage();
     void goToPage(int page);
@@ -88,6 +91,9 @@ private:
     QStackedWidget* stack_ = nullptr;
     QLabel* message_ = nullptr;
     QListWidget* list_ = nullptr;
+    QHash<QString, QLabel*> metaByUrl_;        // meta labels awaiting an upload date
+    QHash<QString, QLabel*> channelThumbByUrl_; // channel thumbs, for the live ring
+    QTimer* dateScrollTimer_ = nullptr;   // debounces date/live enqueue on scroll
 
     // Pagination state. The source is either a search query or a channel/
     // playlist URL (drill-in); both paginate the same way.

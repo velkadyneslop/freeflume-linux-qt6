@@ -1,6 +1,7 @@
 // FreeFlume — reusable list of videos with async thumbnails.
 #pragma once
 
+#include <QHash>
 #include <QList>
 #include <QString>
 #include <QStringList>
@@ -16,6 +17,7 @@ class ThumbnailLoader;
 class QListWidgetItem;
 class QStackedWidget;
 class QLabel;
+class QTimer;
 
 // A scrollable list of SearchResults (thumbnail + title + meta). Used by the
 // History, Subscriptions and Playlists pages. Emits activated() on double-click
@@ -52,6 +54,8 @@ signals:
     void reordered(const QStringList& urlsInOrder);  // new order after a drag
 
 private:
+    void enqueueVisibleDates();  // lazily fetch upload dates for on-screen rows
+
     ThumbnailLoader* thumbs_;  // not owned
     QStackedWidget* stack_ = nullptr;
     QLabel* placeholder_ = nullptr;
@@ -60,6 +64,8 @@ private:
     Database* db_ = nullptr;                   // for "Save to Playlist" (optional)
     DownloadManager* downloads_ = nullptr;     // for "Download" (optional)
     QList<SearchResult> data_;                 // current items, in display order
+    QHash<QString, QLabel*> metaByUrl_;        // meta labels awaiting an upload date
+    QTimer* dateScrollTimer_ = nullptr;        // debounces date enqueue on scroll
     QString removeLabel_;                      // text for the remove action
     bool removable_ = false;
     bool reorderable_ = false;
