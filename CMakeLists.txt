@@ -59,6 +59,7 @@ target_link_libraries(freeflume PRIVATE
     ${MPV_LINK}
 )
 target_compile_options(freeflume PRIVATE -Wall -Wextra)
+target_compile_definitions(freeflume PRIVATE FREEFLUME_VERSION="${PROJECT_VERSION}")
 
 install(TARGETS freeflume RUNTIME DESTINATION bin)
 install(FILES packaging/org.freeflume.Desktop.desktop

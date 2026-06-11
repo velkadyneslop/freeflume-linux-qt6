@@ -27,6 +27,10 @@
 #include "sponsorcategories.h"
 #include "theme.h"
 
+#ifndef FREEFLUME_VERSION
+#define FREEFLUME_VERSION "dev"  // set by CMake from PROJECT_VERSION
+#endif
+
 namespace {
 QString firstLine(const QString& program, const QStringList& args) {
     QProcess p;
@@ -280,6 +284,15 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     bForm->addRow(tr("Data folder:"),
                   new QLabel(apppaths::dataDir(), backends));
     col->addWidget(backends);
+
+    // ---- About ----
+    auto* about = new QGroupBox(tr("About"), content);
+    auto* abForm = new QFormLayout(about);
+    abForm->addRow(tr("Version:"),
+                   new QLabel(QStringLiteral("FreeFlume %1").arg(QStringLiteral(FREEFLUME_VERSION)),
+                              about));
+    abForm->addRow(tr("License:"), new QLabel(QStringLiteral("GPL-3.0-or-later"), about));
+    col->addWidget(about);
 
     col->addStretch();
     scroll->setWidget(content);
