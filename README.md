@@ -42,14 +42,18 @@ libmpv, and `yt-dlp` (mpv's package usually provides libmpv):
 
 ```bash
 # Fedora
-sudo dnf install qt6-qtbase mpv yt-dlp
-# Debian / Ubuntu
-sudo apt install libqt6widgets6 libqt6opengl6 libqt6sql6-sqlite libmpv2 mpv yt-dlp
+sudo dnf install qt6-qtbase-gui mpv yt-dlp
 # Arch
 sudo pacman -S qt6-base mpv yt-dlp
+# Debian / Ubuntu — on 24.04+ the libqt6* names gain a "t64" suffix
+sudo apt install libqt6widgets6 libqt6openglwidgets6 libqt6network6 \
+                 libqt6sql6-sqlite libqt6dbus6 libmpv2 yt-dlp
 
 ./freeflume
 ```
+
+(If `yt-dlp` is missing, the app shows a popup with the right command for your
+distro on launch.)
 
 The Flatpak build bundles Qt, libmpv, and yt-dlp itself — nothing to install.
 
