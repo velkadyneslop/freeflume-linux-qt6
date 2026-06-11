@@ -24,6 +24,7 @@ set(MPV_LINK PkgConfig::MPV)
 
 add_executable(freeflume
     src/main.cpp
+    src/depcheck.cpp
     src/mainwindow.cpp
     src/extractor.cpp
     src/searchpage.cpp

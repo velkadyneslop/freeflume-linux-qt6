@@ -17,6 +17,7 @@
 #include <QIcon>
 
 #include "apppaths.h"
+#include "depcheck.h"
 #include "mainwindow.h"
 #include "theme.h"
 
@@ -43,6 +44,9 @@ int main(int argc, char* argv[]) {
 
     MainWindow window;
     window.show();
+
+    // Nudge the user if the one runtime subprocess dependency is missing.
+    depcheck::warnIfMissing(&window);
 
     // CLI: `freeflume --play <url>` plays a URL directly; otherwise any
     // trailing arguments are treated as a search query.
