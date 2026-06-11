@@ -18,6 +18,8 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QMouseEvent>
+#include <QWindow>
+#include <QtGlobal>
 #include <QResizeEvent>
 #include <QPushButton>
 #include <QSettings>
@@ -88,6 +90,30 @@ constexpr Quality kQualities[] = {
     {"480p", "bestvideo[height<=480]+bestaudio/best[height<=480]/best"},
     {"360p", "bestvideo[height<=360]+bestaudio/best[height<=360]/best"},
 };
+
+// Which window edge(s), if any, a point near the frameless PiP border maps to —
+// so a press there starts a resize; anywhere else starts a move.
+Qt::Edges pipEdgeAt(const QPoint& p, const QSize& s) {
+    constexpr int m = 10;  // grab margin
+    Qt::Edges e;
+    if (p.x() <= m) e |= Qt::LeftEdge;
+    else if (p.x() >= s.width() - m) e |= Qt::RightEdge;
+    if (p.y() <= m) e |= Qt::TopEdge;
+    else if (p.y() >= s.height() - m) e |= Qt::BottomEdge;
+    return e;
+}
+
+// The resize cursor for an edge combination, so hovering a frameless PiP border
+// shows the right arrows like a normal window.
+Qt::CursorShape pipResizeCursor(Qt::Edges e) {
+    const bool l = e & Qt::LeftEdge, r = e & Qt::RightEdge;
+    const bool t = e & Qt::TopEdge, b = e & Qt::BottomEdge;
+    if ((l && t) || (r && b)) return Qt::SizeFDiagCursor;
+    if ((r && t) || (l && b)) return Qt::SizeBDiagCursor;
+    if (l || r) return Qt::SizeHorCursor;
+    if (t || b) return Qt::SizeVerCursor;
+    return Qt::ArrowCursor;
+}
 }  // namespace
 
 PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
@@ -1310,7 +1336,12 @@ void PlayerPage::enterPip() {
     // A *fresh* player in its own window — built from scratch (never reparented),
     // so its GL/mpv render context is valid. Reparenting the live widget blanks
     // the video permanently, so we spin up a second mpv instance instead.
-    pipWindow_ = new QWidget(nullptr, Qt::Window | Qt::WindowStaysOnTopHint);
+    // Frameless (no title bar) — the user drags the video itself to move it (see
+    // the PiP video's mouse handling in eventFilter) and grabs an edge to resize.
+    // A plain top-level window, not a tool/utility one: on Wayland a parentless
+    // utility window has no valid xdg surface and the embedded QOpenGLWidget hangs.
+    pipWindow_ = new QWidget(nullptr,
+                             Qt::Window | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
     pipWindow_->setWindowTitle(tr("FreeFlume — Picture-in-Picture"));
     const QSize pipSize = QSettings(apppaths::configFile(), QSettings::IniFormat)
                               .value(QStringLiteral("playback/pipSize"), QSize(480, 270))
@@ -1437,6 +1468,23 @@ void PlayerPage::enterPip() {
     pipVideo_->installEventFilter(this);    // mouse-move over the video
     pipControls_->installEventFilter(this); // keep visible while hovered
 
+    // After a resize settles, snap the window back to the video's aspect ratio.
+    pipAspectTimer_ = new QTimer(pipWindow_);
+    pipAspectTimer_->setSingleShot(true);
+    pipAspectTimer_->setInterval(160);
+    connect(pipAspectTimer_, &QTimer::timeout, this, [this] {
+        if (!pipActive_ || !pipWindow_ || !pipVideo_) {
+            return;
+        }
+        const double a = pipVideo_->videoAspect();
+        const double aspect = a > 0.0 ? a : 16.0 / 9.0;
+        const int w = pipWindow_->width();
+        const int h = qRound(w / aspect);
+        if (h > 0 && qAbs(h - pipWindow_->height()) > 1) {
+            pipWindow_->resize(w, h);
+        }
+    });
+
     pipPos_ = startAt;
     // Mirror the PiP instance into the main transport bar (which now drives it).
     connect(pipVideo_, &MpvWidget::positionChanged, this, [this](double p) {
@@ -1504,6 +1552,7 @@ void PlayerPage::exitPip() {
         pipControls_ = nullptr;
         pipPlayBtn_ = nullptr;
         pipHideTimer_ = nullptr;
+        pipAspectTimer_ = nullptr;
     }
     pipMessage_->setVisible(false);
     // Resume the in-app player where PiP left off.
@@ -1558,11 +1607,39 @@ bool PlayerPage::eventFilter(QObject* watched, QEvent* event) {
         if (event->type() == QEvent::Resize || event->type() == QEvent::MouseMove) {
             revealPipControls();
         }
+        if (event->type() == QEvent::Resize && pipAspectTimer_) {
+            // Snap back to the video's aspect ratio once the (compositor-driven)
+            // resize settles — snapping mid-drag fights KWin's interactive resize.
+            pipAspectTimer_->start();
+        }
         return QWidget::eventFilter(watched, event);
     }
     if (watched == pipVideo_ || watched == pipControls_) {
         if (event->type() == QEvent::MouseMove) {
             revealPipControls();
+            // Show the resize cursor when hovering a border (frameless window has
+            // no WM frame to do this), so it's clear where you can grab to resize.
+            if (watched == pipVideo_ && pipWindow_) {
+                auto* me = static_cast<QMouseEvent*>(event);
+                const QPoint p = pipWindow_->mapFromGlobal(me->globalPosition().toPoint());
+                pipVideo_->setCursor(pipResizeCursor(pipEdgeAt(p, pipWindow_->size())));
+            }
+        } else if (watched == pipVideo_ && pipWindow_ &&
+                   event->type() == QEvent::MouseButtonPress &&
+                   static_cast<QMouseEvent*>(event)->button() == Qt::LeftButton) {
+            // Frameless window: drag the video to move it, grab an edge to resize.
+            // Uses the compositor's interactive move/resize (works on Wayland).
+            if (QWindow* wh = pipWindow_->windowHandle()) {
+                auto* me = static_cast<QMouseEvent*>(event);
+                const QPoint p = pipWindow_->mapFromGlobal(me->globalPosition().toPoint());
+                const Qt::Edges edges = pipEdgeAt(p, pipWindow_->size());
+                if (edges) {
+                    wh->startSystemResize(edges);
+                } else {
+                    wh->startSystemMove();
+                }
+            }
+            return true;
         }
         return QWidget::eventFilter(watched, event);
     }

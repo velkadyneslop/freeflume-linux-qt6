@@ -121,6 +121,7 @@ private:
     QToolButton* pipBtn_ = nullptr;
     double pipPos_ = 0.0;             // PiP playback position, to resume on return
     bool pipActive_ = false;
+    QTimer* pipAspectTimer_ = nullptr;  // snaps PiP to the video aspect after a resize
     QWidget* topBar_ = nullptr;
     QToolButton* hamburgerBtn_ = nullptr;  // shown only in windowed full playback
     QWidget* transportBar_ = nullptr;

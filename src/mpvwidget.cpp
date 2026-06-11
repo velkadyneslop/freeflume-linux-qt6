@@ -283,6 +283,19 @@ QImage MpvWidget::grabCurrentFrame() {
     return img.convertToFormat(QImage::Format_RGB888);
 }
 
+double MpvWidget::videoAspect() const {
+    if (!mpv_) {
+        return 0.0;
+    }
+    int64_t vw = 0;
+    int64_t vh = 0;
+    if (mpv_get_property(mpv_, "dwidth", MPV_FORMAT_INT64, &vw) < 0 ||
+        mpv_get_property(mpv_, "dheight", MPV_FORMAT_INT64, &vh) < 0 || vw <= 0 || vh <= 0) {
+        return 0.0;
+    }
+    return static_cast<double>(vw) / static_cast<double>(vh);
+}
+
 void MpvWidget::setOption(const QString& name, const QString& value) {
     if (mpv_) {
         mpv_set_property_string(mpv_, name.toUtf8().constData(), value.toUtf8().constData());

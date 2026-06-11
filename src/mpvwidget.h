@@ -56,6 +56,9 @@ public:
     // null image if nothing is playing.
     QImage grabCurrentFrame();
 
+    // The current video's display aspect ratio (dwidth/dheight), or 0 if unknown.
+    double videoAspect() const;
+
     // Subtitle tracks: enumerate and select (by track id; id <= 0 = off).
     QList<MpvTrack> subtitleTracks() const;
     void setSubtitleTrack(int id);
