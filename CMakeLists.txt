@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(freeflume
-    VERSION 1.0.0
+    VERSION 1.0.1
     DESCRIPTION "Native desktop streaming front-end (FreeFlume, desktop port)"
     LANGUAGES CXX)
 
