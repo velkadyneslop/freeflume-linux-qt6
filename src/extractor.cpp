@@ -1,4 +1,5 @@
 // FreeFlume — extraction backend implementation.
+#include <algorithm>
 #include "extractor.h"
 
 #include <climits>
@@ -262,24 +263,34 @@ void Extractor::search(const QString& query, int page, int pageSize, bool richRe
     }
 }
 
-void Extractor::fetchChannel(const QString& channelUrl, int page, int pageSize) {
+void Extractor::fetchChannel(const QString& channelUrl, int page, int pageSize, bool streamsTab) {
     const int start = (page - 1) * pageSize + 1;
     const int end = page * pageSize;
-    QStringList targets;
-    // Page 1 of an actual channel also pulls its /streams tab (the /videos tab
-    // omits live streams). Currently-live streams have no duration, so they
-    // render as "LIVE" and sort to the top. Skip for playlists.
+    if (streamsTab) {
+        // Streams view: the whole /streams tab (live + upcoming + past), newest-first
+        // as YouTube returns it. No pin/drop — past streams are the point here.
+        runFlat({channelBaseUrl(channelUrl) + QStringLiteral("/streams")}, channelUrl,
+                start, end);
+        return;
+    }
     const bool channelLike = channelUrl.contains(QLatin1String("/channel/")) ||
                              channelUrl.contains(QLatin1String("/@")) ||
                              channelUrl.contains(QLatin1String("/c/")) ||
                              channelUrl.contains(QLatin1String("/user/"));
     const bool isPlaylist = channelUrl.contains(QLatin1String("list=")) ||
                             channelUrl.contains(QLatin1String("/playlist"));
-    if (page == 1 && channelLike && !isPlaylist) {
+    // Page 1 of an actual channel also pulls its /streams tab so a currently-live
+    // (or upcoming) stream can be shown — the /videos tab omits streams entirely.
+    // handleFinished then keeps the uploads + only the live/upcoming stream entries
+    // (no duration), DROPS finished past streams, and floats the live ones to the
+    // top. Net order = live/upcoming → uploads (clean, like YouTube's Videos tab).
+    const bool withStreams = (page == 1 && channelLike && !isPlaylist);
+    QStringList targets;
+    targets << channelToVideosTab(channelUrl);
+    if (withStreams) {
         targets << channelBaseUrl(channelUrl) + QStringLiteral("/streams");
     }
-    targets << channelToVideosTab(channelUrl);
-    runFlat(targets, channelUrl, start, end);
+    runFlat(targets, channelUrl, start, end, withStreams);
 }
 
 void Extractor::searchInChannel(const QString& channelUrl, const QString& query, int page,
@@ -292,9 +303,11 @@ void Extractor::searchInChannel(const QString& channelUrl, const QString& query,
     runFlat({url}, channelUrl, start, end);
 }
 
-void Extractor::runFlat(const QStringList& targets, const QString& label, int start, int end) {
+void Extractor::runFlat(const QStringList& targets, const QString& label, int start, int end,
+                        bool pinLiveFirst) {
     cancel();
     query_ = label;
+    pinLiveFirst_ = pinLiveFirst;
 
     proc_ = new QProcess(this);
     connect(proc_, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
@@ -461,9 +474,28 @@ void Extractor::handleFinished(int exitCode, QProcess::ExitStatus status) {
             total = pc;
         }
         SearchResult r = parseEntry(obj);
-        if (!r.title.isEmpty() && !r.url.isEmpty()) {
-            results.push_back(std::move(r));
+        if (r.title.isEmpty() || r.url.isEmpty()) {
+            continue;
         }
+        if (pinLiveFirst_ && r.durationSeconds > 0) {
+            // Channel view: drop PAST streams. A finished stream has a duration and
+            // comes from the /streams tab; uploads also have a duration but come
+            // from /videos (kept). Live/upcoming streams have no duration and are
+            // kept + floated to the top below.
+            const QString src = obj.value(QStringLiteral("playlist_webpage_url")).toString();
+            const QString orig = obj.value(QStringLiteral("original_url")).toString();
+            if (src.endsWith(QLatin1String("/streams")) ||
+                orig.endsWith(QLatin1String("/streams"))) {
+                continue;
+            }
+        }
+        results.push_back(std::move(r));
+    }
+
+    if (pinLiveFirst_) {
+        // Float the currently-live/upcoming streams (no duration) above the uploads.
+        std::stable_partition(results.begin(), results.end(),
+                              [](const SearchResult& r) { return r.durationSeconds <= 0; });
     }
 
     if (results.isEmpty()) {

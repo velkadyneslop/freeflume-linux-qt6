@@ -15,6 +15,7 @@
 #include <QSignalBlocker>
 #include <QTimer>
 #include <QToolButton>
+#include <QButtonGroup>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -189,6 +190,24 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     backButton_->setVisible(false);
     contextLabel_ = new QLabel(header);
     contextLabel_->setEnabled(false);  // muted
+    // Channel-only Videos/Streams tabs (like YouTube): Videos = clean uploads
+    // + a live stream pinned on top; Streams = the full streams tab (past + live).
+    auto* tabGroup = new QButtonGroup(this);
+    tabGroup->setExclusive(true);
+    for (QToolButton** btn : {&videosTabBtn_, &streamsTabBtn_}) {
+        *btn = new QToolButton(header);
+        (*btn)->setCheckable(true);
+        (*btn)->setAutoRaise(true);
+        (*btn)->setFocusPolicy(Qt::NoFocus);
+        (*btn)->setVisible(false);
+        tabGroup->addButton(*btn);
+    }
+    videosTabBtn_->setText(tr("Videos"));
+    videosTabBtn_->setChecked(true);
+    streamsTabBtn_->setText(tr("Streams"));
+    connect(videosTabBtn_, &QToolButton::clicked, this, [this] { setChannelTab(false); });
+    connect(streamsTabBtn_, &QToolButton::clicked, this, [this] { setChannelTab(true); });
+
     channelSearch_ = new QLineEdit(header);
     channelSearch_->setClearButtonEnabled(true);
     channelSearch_->setPlaceholderText(tr("Search this channel…"));
@@ -196,6 +215,8 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     channelSearch_->setVisible(false);
     headerRow->addWidget(backButton_);
     headerRow->addWidget(contextLabel_, /*stretch=*/1);
+    headerRow->addWidget(videosTabBtn_);
+    headerRow->addWidget(streamsTabBtn_);
     headerRow->addWidget(channelSearch_);
     leftCol->addWidget(header);
     connect(backButton_, &QPushButton::clicked, this, &SearchPage::goBack);
@@ -510,10 +531,22 @@ SearchPage::NavState SearchPage::captureCurrent() const {
     s.query = currentQuery_;
     s.channelUrl = currentChannelUrl_;
     s.channelQuery = currentChannelQuery_;
+    s.channelStreams = currentChannelStreams_;
     s.label = currentLabel_;
     s.filters = currentFilters_;
     s.page = currentPage_;
     return s;
+}
+
+void SearchPage::setChannelTab(bool streams) {
+    if (!isCurrentChannel() || currentChannelStreams_ == streams) {
+        return;
+    }
+    NavState s = captureCurrent();
+    s.channelStreams = streams;
+    s.channelQuery.clear();  // switching tab drops any in-channel search
+    s.page = 1;
+    goToState(s, /*pushCurrent=*/false);  // a tab switch isn't a back-stack step
 }
 
 SearchFilters SearchPage::readFilters() const {
@@ -618,6 +651,7 @@ void SearchPage::goToState(const NavState& s, bool pushCurrent) {
     currentQuery_ = s.query;
     currentChannelUrl_ = s.channelUrl;
     currentChannelQuery_ = s.channelQuery;
+    currentChannelStreams_ = s.channelStreams;
     currentLabel_ = s.label;
     currentFilters_ = s.filters;
     setFiltersUi(currentFilters_);
@@ -639,6 +673,13 @@ void SearchPage::goBack() {
 void SearchPage::updateContextUi() {
     backButton_->setVisible(!backStack_.isEmpty());
     channelSearch_->setVisible(isCurrentChannel());
+    // Videos/Streams tabs only while browsing a channel (not during an in-channel search).
+    const bool channelTabs = isCurrentChannel() && currentChannelQuery_.isEmpty();
+    videosTabBtn_->setVisible(channelTabs);
+    streamsTabBtn_->setVisible(channelTabs);
+    if (channelTabs) {
+        (currentChannelStreams_ ? streamsTabBtn_ : videosTabBtn_)->setChecked(true);
+    }
     filterBar_->setVisible(!isChannelSource_);  // filters apply to general search
     if (channelSearch_->text() != currentChannelQuery_) {
         channelSearch_->setText(currentChannelQuery_);
@@ -665,7 +706,8 @@ void SearchPage::fetchPage() {
             return;
         }
         if (currentChannelQuery_.isEmpty()) {
-            extractor_->fetchChannel(currentChannelUrl_, currentPage_, pageSize_);
+            extractor_->fetchChannel(currentChannelUrl_, currentPage_, pageSize_,
+                                     currentChannelStreams_);
         } else {
             extractor_->searchInChannel(currentChannelUrl_, currentChannelQuery_, currentPage_,
                                         pageSize_);

@@ -95,8 +95,11 @@ public:
                 bool richResults = false, const SearchFilters& filters = {});
 
     // Loads one page of a channel/playlist URL. Emits the same
-    // searchStarted/searchFinished/searchFailed signals as search().
-    void fetchChannel(const QString& channelUrl, int page = 1, int pageSize = 50);
+    // searchStarted/searchFinished/searchFailed signals as search(). With
+    // streamsTab=true, loads the channel's /streams tab (all live + past streams)
+    // instead of the clean uploads view.
+    void fetchChannel(const QString& channelUrl, int page = 1, int pageSize = 50,
+                      bool streamsTab = false);
 
     // Searches within a single channel (YT's per-channel search). Emits the
     // same signals as search(). channelUrl may include a tab; it is stripped.
@@ -131,7 +134,8 @@ signals:
     void playlistItemsReady(const QList<SearchResult>& items, const QString& url);
 
 private:
-    void runFlat(const QStringList& targets, const QString& query, int start, int end);
+    void runFlat(const QStringList& targets, const QString& query, int start, int end,
+                 bool pinLiveFirst = false);
     void handleFinished(int exitCode, QProcess::ExitStatus status);
     void handleError(QProcess::ProcessError error);
     void handleDetailsFinished(int exitCode, QProcess::ExitStatus status);
@@ -140,6 +144,7 @@ private:
     QProcess* proc_ = nullptr;
     QProcess* detailsProc_ = nullptr;
     QProcess* playlistProc_ = nullptr;
+    bool pinLiveFirst_ = false;  // channel page 1: float live/upcoming streams to the top
     QString query_;
     QString detailsUrl_;
     QString playlistUrl_;
