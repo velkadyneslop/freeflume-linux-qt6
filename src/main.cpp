@@ -14,7 +14,10 @@
 // gtk3 platform theme) — we never hardcode a look.
 
 #include <QApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QIcon>
+#include <QStandardPaths>
 
 #include "apppaths.h"
 #include "depcheck.h"
@@ -30,6 +33,19 @@ int main(int argc, char* argv[]) {
 
     // Move data/config over from the pre-1.0 "FreeFlume/FreeFlume" layout.
     apppaths::migrateLegacy();
+
+    // The official Deno installer drops the binary in ~/.deno/bin but leaves the
+    // PATH step to the user; yt-dlp needs Deno to unlock full-resolution YouTube
+    // playback (it solves the "nsig" challenge there). If Deno isn't already on
+    // PATH, add the installer's default location so the mpv/yt-dlp subprocesses we
+    // spawn can find it — no manual PATH fiddling required.
+    if (QStandardPaths::findExecutable(QStringLiteral("deno")).isEmpty()) {
+        const QString denoBin = QDir::homePath() + QStringLiteral("/.deno/bin");
+        if (QFileInfo::exists(denoBin + QStringLiteral("/deno"))) {
+            qputenv("PATH",
+                    (denoBin + QLatin1Char(':') + qEnvironmentVariable("PATH")).toUtf8());
+        }
+    }
 
     // App icon (embedded), with the installed theme icon as a fallback.
     QIcon icon = QIcon::fromTheme(QStringLiteral("freeflume"));
