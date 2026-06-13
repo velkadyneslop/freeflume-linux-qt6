@@ -1,9 +1,12 @@
 // FreeFlume — runtime dependency check implementation.
 #include "depcheck.h"
 
+#include "apppaths.h"
+
 #include <QFile>
 #include <QMessageBox>
 #include <QObject>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QString>
 #include <QStringList>
@@ -51,26 +54,60 @@ QString distroYtdlpCommand() {
     return {};
 }
 
+// Why Deno matters + how to get it. YouTube gates high-res streams behind a JS
+// "nsig" challenge that yt-dlp solves by running the player code in Deno; without
+// it, playback is capped to low-res/SABR formats.
+QString denoHint() {
+    return QObject::tr(
+        "<b>For full-resolution playback, install Deno.</b> YouTube hides its "
+        "high-resolution streams behind a JavaScript challenge that yt-dlp solves by "
+        "running the player code in Deno — without it, playback is capped to lower "
+        "quality.<br><code>curl -fsSL https://deno.land/install.sh | sh</code><br>"
+        "(Arch: <code>sudo pacman -S deno</code>. The Flatpak build already bundles it.)");
+}
+
 }  // namespace
 
 void depcheck::warnIfMissing(QWidget* parent) {
-    if (!QStandardPaths::findExecutable(QStringLiteral("yt-dlp")).isEmpty()) {
-        return;  // already on PATH — nothing to do
+    const bool haveYtdlp = !QStandardPaths::findExecutable(QStringLiteral("yt-dlp")).isEmpty();
+    const bool haveDeno = !QStandardPaths::findExecutable(QStringLiteral("deno")).isEmpty();
+    if (haveYtdlp && haveDeno) {
+        return;  // both present — nothing to do
     }
 
-    const QString cmd = distroYtdlpCommand();
-    QString body = QObject::tr(
-        "<b>FreeFlume needs yt-dlp</b> to search and play videos, but it isn't on "
-        "your PATH.<br><br>");
-    if (!cmd.isEmpty()) {
-        body += QObject::tr("Install it with:<br><code>%1</code><br><br>").arg(cmd);
+    if (!haveYtdlp) {
+        // yt-dlp is required, so always warn (and fold in the Deno tip if it's
+        // also missing).
+        const QString cmd = distroYtdlpCommand();
+        QString body = QObject::tr(
+            "<b>FreeFlume needs yt-dlp</b> to search and play videos, but it isn't on "
+            "your PATH.<br><br>");
+        if (!cmd.isEmpty()) {
+            body += QObject::tr("Install it with:<br><code>%1</code><br><br>").arg(cmd);
+        }
+        body += QObject::tr(
+            "Or get the newest version (recommended — yt-dlp updates often to keep up "
+            "with the site):<br><code>pipx install yt-dlp</code><br><br>"
+            "Tip: the Flatpak build bundles yt-dlp, so there's nothing to install.");
+        if (!haveDeno) {
+            body += QStringLiteral("<br><hr>") + denoHint();
+        }
+        QMessageBox box(QMessageBox::Warning, QObject::tr("yt-dlp not found"), body,
+                        QMessageBox::Ok, parent);
+        box.setTextFormat(Qt::RichText);
+        box.exec();
+        return;
     }
-    body += QObject::tr(
-        "Or get the newest version (recommended — yt-dlp updates often to keep up "
-        "with the site):<br><code>pipx install yt-dlp</code><br><br>"
-        "Tip: the Flatpak build bundles yt-dlp, so there's nothing to install.");
 
-    QMessageBox box(QMessageBox::Warning, QObject::tr("yt-dlp not found"), body,
+    // yt-dlp is present but Deno isn't: Deno is optional (only affects quality),
+    // so recommend it just once rather than nagging on every launch.
+    QSettings s(apppaths::configFile(), QSettings::IniFormat);
+    if (s.value(QStringLiteral("depcheck/denoHintShown"), false).toBool()) {
+        return;
+    }
+    s.setValue(QStringLiteral("depcheck/denoHintShown"), true);
+    QMessageBox box(QMessageBox::Information,
+                    QObject::tr("Tip: install Deno for full-quality playback"), denoHint(),
                     QMessageBox::Ok, parent);
     box.setTextFormat(Qt::RichText);
     box.exec();

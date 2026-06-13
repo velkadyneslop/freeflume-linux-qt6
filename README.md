@@ -55,7 +55,18 @@ sudo apt install libqt6widgets6 libqt6openglwidgets6 libqt6network6 \
 (If `yt-dlp` is missing, the app shows a popup with the right command for your
 distro on launch.)
 
-The Flatpak build bundles Qt, libmpv, and yt-dlp itself — nothing to install.
+**For full-resolution playback, also install [Deno](https://deno.land):**
+
+```bash
+curl -fsSL https://deno.land/install.sh | sh      # any distro (Arch: pacman -S deno)
+```
+
+YouTube hides its high-resolution streams behind a JavaScript challenge that
+`yt-dlp` solves by running the player code in Deno. Without Deno on your `PATH`,
+playback is capped to lower-quality (SABR) formats — *with* it, you get full
+quality signed-out. The app nudges you about this once if Deno is missing.
+
+The Flatpak build bundles Qt, libmpv, yt-dlp, **and Deno** — nothing to install.
 
 ## Build
 
