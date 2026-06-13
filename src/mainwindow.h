@@ -10,6 +10,9 @@ class QStackedWidget;
 class QLineEdit;
 class QCompleter;
 class QStringListModel;
+class QTimer;
+class QNetworkAccessManager;
+class QNetworkReply;
 class Extractor;
 class SearchPage;
 class PlayerPage;
@@ -55,6 +58,10 @@ private slots:
 private:
     QWidget* buildSidebar();
     QWidget* buildTopBar();
+    // Live YouTube search suggestions (opt-in: setting search/suggestions, default
+    // off — it sends the typed text to Google). Debounced; merged with history.
+    void fetchSuggestions();
+    void applySuggestions(const QByteArray& data, const QString& forText);
     QWidget* buildPlaceholderPage(const QString& title, const QString& subtitle,
                                   const QString& iconName);
 
@@ -83,6 +90,9 @@ private:
     QLineEdit* search_ = nullptr;
     QCompleter* searchCompleter_ = nullptr;
     QStringListModel* searchModel_ = nullptr;
+    QTimer* suggestTimer_ = nullptr;             // debounces suggestion requests
+    QNetworkAccessManager* suggestNam_ = nullptr;
+    QNetworkReply* suggestReply_ = nullptr;      // in-flight suggestion request
     int lastNavIndex_ = 0;
     PlayerState playerState_ = PlayerHidden;
     bool playerFullScreen_ = false;

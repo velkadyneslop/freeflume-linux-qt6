@@ -203,9 +203,14 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     searchLimit_->setRange(5, 100);
     includeChannels_ = new QCheckBox(tr("Include Channels"), search);
     includePlaylists_ = new QCheckBox(tr("Include Playlists"), search);
+    searchSuggestions_ = new QCheckBox(tr("Enable search suggestions"), search);
+    searchSuggestions_->setToolTip(
+        tr("Show live YouTube query suggestions as you type. This sends what you "
+           "type to Google. Off by default."));
     sForm->addRow(tr("Results per page:"), searchLimit_);
     sForm->addRow(tr("Show in results:"), includeChannels_);
     sForm->addRow(QString(), includePlaylists_);
+    sForm->addRow(tr("Suggestions:"), searchSuggestions_);
     col->addWidget(search);
 
     // ---- Subtitles ----
@@ -365,6 +370,7 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     connect(searchLimit_, &QSpinBox::valueChanged, this, [this] { save(); });
     connect(includeChannels_, &QCheckBox::toggled, this, [this] { save(); });
     connect(includePlaylists_, &QCheckBox::toggled, this, [this] { save(); });
+    connect(searchSuggestions_, &QCheckBox::toggled, this, [this] { save(); });
     connect(includeAutoSubs_, &QCheckBox::toggled, this, [this] { save(); });
     connect(subLanguage_, &QComboBox::currentIndexChanged, this, [this] { save(); });
     connect(subTranslate_, &QComboBox::currentIndexChanged, this, [this] { save(); });
@@ -470,6 +476,8 @@ void SettingsPage::load() {
     includeChannels_->setChecked(s.value(QStringLiteral("search/includeChannels"), true).toBool());
     includePlaylists_->setChecked(
         s.value(QStringLiteral("search/includePlaylists"), true).toBool());
+    searchSuggestions_->setChecked(
+        s.value(QStringLiteral("search/suggestions"), false).toBool());
 
     includeAutoSubs_->setChecked(s.value(QStringLiteral("subtitles/includeAuto"), false).toBool());
     subLanguage_->setCurrentIndex(qMax(0, subLanguage_->findData(
@@ -538,6 +546,7 @@ void SettingsPage::save() {
     s.setValue(QStringLiteral("search/limit"), searchLimit_->value());
     s.setValue(QStringLiteral("search/includeChannels"), includeChannels_->isChecked());
     s.setValue(QStringLiteral("search/includePlaylists"), includePlaylists_->isChecked());
+    s.setValue(QStringLiteral("search/suggestions"), searchSuggestions_->isChecked());
     s.setValue(QStringLiteral("subtitles/includeAuto"), includeAutoSubs_->isChecked());
     s.setValue(QStringLiteral("subtitles/language"), subLanguage_->currentData());
     s.setValue(QStringLiteral("subtitles/translateTo"), subTranslate_->currentData());

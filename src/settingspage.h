@@ -42,6 +42,7 @@ private:
     QSpinBox* searchLimit_ = nullptr;
     QCheckBox* includeChannels_ = nullptr;
     QCheckBox* includePlaylists_ = nullptr;
+    QCheckBox* searchSuggestions_ = nullptr;
     QCheckBox* includeAutoSubs_ = nullptr;
     QComboBox* subLanguage_ = nullptr;
     QComboBox* subTranslate_ = nullptr;

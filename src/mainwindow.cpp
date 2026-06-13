@@ -7,12 +7,21 @@
 #include <QHBoxLayout>
 #include <QSignalBlocker>
 #include <QIcon>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonValue>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QDir>
 #include <QMetaType>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QSettings>
+#include <QTimer>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QShortcut>
 #include <QStringListModel>
 #include <QStackedWidget>
@@ -239,16 +248,104 @@ QWidget* MainWindow::buildTopBar() {
     connect(db_, &Database::searchHistoryChanged, this,
             [this] { searchModel_->setStringList(db_->searchHistory()); });
 
+    // Optional live YouTube search suggestions (opt-in, default off).
+    suggestNam_ = new QNetworkAccessManager(this);
+    suggestTimer_ = new QTimer(this);
+    suggestTimer_->setSingleShot(true);
+    suggestTimer_->setInterval(160);  // debounce keystrokes
+    connect(suggestTimer_, &QTimer::timeout, this, &MainWindow::fetchSuggestions);
+    connect(search_, &QLineEdit::textEdited, this, [this](const QString& text) {
+        const QSettings s(apppaths::configFile(), QSettings::IniFormat);
+        if (s.value(QStringLiteral("search/suggestions"), false).toBool() &&
+            !text.trimmed().isEmpty()) {
+            suggestTimer_->start();
+        }
+    });
+
     connect(search_, &QLineEdit::returnPressed, this, &MainWindow::onSearchSubmitted);
-    // Clearing the box (e.g. the clear button) wipes the results.
+    // Clearing the box (e.g. the clear button) wipes the results + suggestions.
     connect(search_, &QLineEdit::textChanged, this, [this](const QString& text) {
-        if (text.isEmpty() && searchPage_) {
-            searchPage_->clearResults();
+        if (text.isEmpty()) {
+            suggestTimer_->stop();
+            searchModel_->setStringList(db_->searchHistory());  // back to history
+            if (searchPage_) {
+                searchPage_->clearResults();
+            }
         }
     });
 
     lay->addWidget(search_, /*stretch=*/1);
     return bar;
+}
+
+void MainWindow::fetchSuggestions() {
+    if (!search_) {
+        return;
+    }
+    const QString text = search_->text().trimmed();
+    if (text.isEmpty()) {
+        return;
+    }
+    if (suggestReply_) {  // supersede any in-flight request
+        suggestReply_->abort();
+        suggestReply_->deleteLater();
+        suggestReply_ = nullptr;
+    }
+    QUrl url(QStringLiteral("https://suggestqueries.google.com/complete/search"));
+    QUrlQuery q;
+    q.addQueryItem(QStringLiteral("client"), QStringLiteral("firefox"));  // clean JSON
+    q.addQueryItem(QStringLiteral("ds"), QStringLiteral("yt"));           // YouTube
+    q.addQueryItem(QStringLiteral("q"), text);
+    url.setQuery(q);
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader,
+                  QStringLiteral("Mozilla/5.0 (compatible; FreeFlume)"));
+    suggestReply_ = suggestNam_->get(req);
+    connect(suggestReply_, &QNetworkReply::finished, this, [this, text] {
+        QNetworkReply* r = suggestReply_;
+        if (!r) {
+            return;
+        }
+        suggestReply_ = nullptr;
+        r->deleteLater();
+        if (r->error() == QNetworkReply::NoError) {
+            applySuggestions(r->readAll(), text);
+        }
+    });
+}
+
+void MainWindow::applySuggestions(const QByteArray& data, const QString& forText) {
+    // Ignore if the user has typed on since this request was issued.
+    if (!search_ || search_->text().trimmed() != forText) {
+        return;
+    }
+    // Response shape: ["query", ["suggestion 1", "suggestion 2", …], …]
+    const QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (!doc.isArray() || doc.array().size() < 2 || !doc.array().at(1).isArray()) {
+        return;
+    }
+    QStringList list;
+    const QJsonArray suggestions = doc.array().at(1).toArray();
+    for (const QJsonValue& v : suggestions) {
+        const QString s = v.toString().trimmed();
+        if (!s.isEmpty() && !list.contains(s, Qt::CaseInsensitive)) {
+            list << s;
+        }
+    }
+    if (list.isEmpty()) {
+        return;
+    }
+    // Round it out with a few recent searches not already suggested.
+    for (const QString& h : db_->searchHistory()) {
+        if (list.size() >= 12) {
+            break;
+        }
+        if (!list.contains(h, Qt::CaseInsensitive)) {
+            list << h;
+        }
+    }
+    searchModel_->setStringList(list);
+    searchCompleter_->complete();  // show/refresh the dropdown
 }
 
 QWidget* MainWindow::buildPlaceholderPage(const QString& title, const QString& subtitle,
