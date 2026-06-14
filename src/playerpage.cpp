@@ -15,8 +15,10 @@
 #include <QIcon>
 #include <QImage>
 #include <QImageWriter>
+#include <QDate>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QWindow>
 #include <QtGlobal>
@@ -384,7 +386,7 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
     previewTime_ = new QLabel(preview_);
     previewTime_->setAlignment(Qt::AlignCenter);
     previewTime_->setStyleSheet(QStringLiteral("color:white;font-weight:bold;background:transparent;"));
-    previewCol->addWidget(previewThumb_);
+    previewCol->addWidget(previewThumb_, 0, Qt::AlignHCenter);
     previewCol->addWidget(previewTime_);
 
     // SponsorBlock overlays: a transient "Skipped … (Enter to revert)" toast and
@@ -714,6 +716,19 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
                         ? QStringLiteral("<p><b>%1</b></p>").arg(name)
                         : QStringLiteral("<p><b><a href=\"freeflume://channel\">%1</a></b></p>")
                               .arg(name);
+        }
+        // Stats line: view count · upload date (muted, above the description).
+        QStringList stats;
+        if (d.viewCount >= 0) {
+            stats << tr("%1 views").arg(QLocale().toString(d.viewCount));
+        }
+        const QDate uploaded = QDate::fromString(d.uploadDate, QStringLiteral("yyyyMMdd"));
+        if (uploaded.isValid()) {
+            stats << uploaded.toString(QStringLiteral("d MMM yyyy"));
+        }
+        if (!stats.isEmpty()) {
+            html += QStringLiteral("<p style=\"color:gray;\">%1</p>")
+                        .arg(stats.join(QStringLiteral("  ·  ")));
         }
         const QString desc =
             d.description.isEmpty()
