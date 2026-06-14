@@ -82,3 +82,7 @@ cmake -S . -B build -G Ninja && cmake --build build
 ```
 
 `yt-dlp` and `mpv` are runtime requirements.
+
+## License
+
+[GPL-3.0-or-later](LICENSE).
