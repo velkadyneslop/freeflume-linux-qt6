@@ -1,6 +1,7 @@
 // FreeFlume — video detail pane implementation.
 #include "detailpane.h"
 
+#include <QDate>
 #include <QFont>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -44,13 +45,10 @@ QString formatDuration(qint64 seconds) {
     return QStringLiteral("%1:%2").arg(m).arg(s, 2, 10, QLatin1Char('0'));
 }
 
-// "20080520" -> "2008-05-20"
+// "20080520" -> "20 May 2008" (matches the video/search lists).
 QString formatDate(const QString& yyyymmdd) {
-    if (yyyymmdd.size() != 8) {
-        return {};
-    }
-    return QStringLiteral("%1-%2-%3")
-        .arg(yyyymmdd.left(4), yyyymmdd.mid(4, 2), yyyymmdd.mid(6, 2));
+    const QDate d = QDate::fromString(yyyymmdd, QStringLiteral("yyyyMMdd"));
+    return d.isValid() ? d.toString(QStringLiteral("d MMM yyyy")) : QString();
 }
 
 }  // namespace
