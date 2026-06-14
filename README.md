@@ -1,82 +1,75 @@
+<p align="center">
+  <img src="packaging/icons/freeflume-256.png" width="120" alt="FreeFlume">
+</p>
+
 # FreeFlume
 
-A fast, native desktop **YT client** for Linux — built from the ground up
-for big screens, mouse and keyboard. — a small native
-C++/Qt6 binary.
+A native desktop YouTube client for Linux, inspired by
+[NewPipe](https://github.com/TeamNewPipe/NewPipe) and reimagined for the desktop.
 
-![native](https://img.shields.io/badge/native-C%2B%2B%2FQt6-blue)
+> Built with AI assistance. I made FreeFlume for my own personal use. If you're a
+> developer and want to use it, or take parts of it for your own project, you're
+> welcome to.
 
-> FreeFlume began as a desktop reimagining of
-> [BravePipe](https://github.com/bravepipeproject/BravePipe) (a
-> [NewPipe](https://github.com/TeamNewPipe/NewPipe) fork), and keeps that
-> lineage in its name: **Free** (libre — no ads, no account) + **Flume** (the
-> channel that carries the flow). It shares no code with the Android app — the
-> UI is rebuilt for the desktop and the moving parts are swapped for native
-> equivalents.
+It's a small C++/Qt6 program written from scratch (it shares no code with NewPipe).
+It ties together a few existing tools into a fast YouTube client for big screens,
+keyboard and mouse:
 
-| Concern    | Android (NewPipe/BravePipe) | FreeFlume (desktop)                |
-|------------|-----------------------------|------------------------------------|
-| UI         | Android Views/Fragments     | **Qt6 Widgets** (desktop-first)    |
-| Extraction | NewPipeExtractor (JVM)      | **yt-dlp** (subprocess)            |
-| Playback   | ExoPlayer (Android)         | **libmpv** (embedded, OpenGL)      |
-| Storage    | Room/SQLite (Android)       | **Qt Sql / SQLite**                |
+- **mpv** for playback
+- **yt-dlp** for search and extraction
+- **Deno** for full-resolution playback
+
+No ads, no account, no telemetry.
 
 ## Features
 
-- 🔎 **Search** with thumbnails, pagination, YT-style filters, channels &
-  playlists in results, and per-channel search
-- 📄 **Detail pane** — description (clickable links), stats, clickable channel
-- ▶️ **Embedded player** (libmpv): click-to-seek, hover time preview, quality
-  select, captions with full styling, fullscreen with auto-hiding controls —
-  keyboard: `Space` `←/→` `↑/↓` `M` `C` `F` `I` `Esc`
-- 🧭 **Navigate** — drill into channels/playlists, in-app Back, visit a video's
-  channel by clicking its name
-- 🕘 **History**, ⭐ **Subscriptions** (channel feeds), 📁 **Playlists** — in SQLite
-- 🎨 **Native on every desktop** — Breeze on KDE, gtk3 theme on GNOME; follows
-  system light/dark; overridable in Settings
+- Search with thumbnails, filters, and channels and playlists in the results
+- mpv playback up to 4K with hardware decoding, quality selection, captions, and chapters
+- Seek bar with thumbnail previews
+- Picture-in-picture, fullscreen, and a mini-player
+- SponsorBlock
+- Channels with separate Videos and Streams tabs
+- Subscriptions with channel feeds, watch history, local playlists, and downloads
+- Native look on KDE and other Qt-based desktops, follows your system light/dark theme
 
 ## Run the binary
 
 The portable binary ships as `freeflume-<version>-x86_64.tar.gz` on the
 [releases page](https://github.com/velkadyneslop/freeflume-linux-qt6/releases).
-Extract it and run — it's already executable (the tarball preserves the mode, so
-no `chmod` needed):
+Extract it and run; it's already executable:
 
 ```bash
 tar xzf freeflume-*-x86_64.tar.gz
 ./freeflume
 ```
 
-It's dynamically linked, so the host needs Qt6, libmpv, and `yt-dlp` (mpv's
-package usually provides libmpv):
+It's dynamically linked, so the host needs Qt6, libmpv, and `yt-dlp` (mpv's package
+usually provides libmpv):
 
 ```bash
 # Fedora
 sudo dnf install qt6-qtbase-gui mpv yt-dlp
 # Arch
 sudo pacman -S qt6-base mpv yt-dlp
-# Debian / Ubuntu — on 24.04+ the libqt6* names gain a "t64" suffix
+# Debian / Ubuntu  (on 24.04+ the libqt6* names gain a "t64" suffix)
 sudo apt install libqt6widgets6 libqt6openglwidgets6 libqt6network6 \
                  libqt6sql6-sqlite libqt6dbus6 libmpv2 yt-dlp
-
-./freeflume
 ```
 
-(If `yt-dlp` is missing, the app shows a popup with the right command for your
-distro on launch.)
+If `yt-dlp` is missing, the app shows a popup with the right command for your distro
+on launch.
 
-**For full-resolution playback, also install [Deno](https://deno.land):**
+For full-resolution playback, also install [Deno](https://deno.land):
 
 ```bash
 curl -fsSL https://deno.land/install.sh | sh      # any distro (Arch: pacman -S deno)
 ```
 
-YouTube hides its high-resolution streams behind a JavaScript challenge that
-`yt-dlp` solves by running the player code in Deno. Without Deno on your `PATH`,
-playback is capped to lower-quality (SABR) formats — *with* it, you get full
-quality signed-out. The app nudges you about this once if Deno is missing.
+YouTube hides its high-resolution streams behind a JavaScript challenge that `yt-dlp`
+solves by running the player code in Deno. Without Deno, playback is capped to lower
+quality. The app reminds you once if it's missing.
 
-The Flatpak build bundles Qt, libmpv, yt-dlp, **and Deno** — nothing to install.
+The Flatpak build bundles Qt, libmpv, yt-dlp, and Deno, so there's nothing to install.
 
 ## Build
 
@@ -89,8 +82,3 @@ cmake -S . -B build -G Ninja && cmake --build build
 ```
 
 `yt-dlp` and `mpv` are runtime requirements.
-
-## A note
-
-I built FreeFlume for my own use. If you're a dev and want to lift anything from
-it, go ahead — take whatever's useful.
