@@ -250,7 +250,12 @@ void MpvWidget::command(const QStringList& args) {
         argv.push_back(b.constData());
     }
     argv.push_back(nullptr);
-    mpv_command(mpv_, argv.data());
+    // Async (reply ignored): a *synchronous* mpv call from the GUI thread takes
+    // mpv's dispatch lock and waits for the core — but with the render API's
+    // ADVANCED_CONTROL the core can be waiting on this very thread to render,
+    // which deadlocks and abort()s (e.g. play() while a video is rendering). mpv
+    // copies the args before returning, and runs queued requests in order.
+    mpv_command_async(mpv_, /*reply_userdata=*/0, argv.data());
 }
 
 QImage MpvWidget::grabCurrentFrame() {
@@ -297,9 +302,9 @@ double MpvWidget::videoAspect() const {
 }
 
 void MpvWidget::setOption(const QString& name, const QString& value) {
-    if (mpv_) {
-        mpv_set_property_string(mpv_, name.toUtf8().constData(), value.toUtf8().constData());
-    }
+    // Via the async "set" command (see command()) so it never blocks the GUI
+    // thread on the mpv core.
+    command({QStringLiteral("set"), name, value});
 }
 
 void MpvWidget::play(const QString& url, double startSeconds) {
@@ -316,8 +321,8 @@ void MpvWidget::play(const QString& url, double startSeconds) {
 }
 
 void MpvWidget::setYtdlFormat(const QString& format) {
-    if (mpv_ && !format.isEmpty()) {
-        mpv_set_property_string(mpv_, "ytdl-format", format.toUtf8().constData());
+    if (!format.isEmpty()) {
+        setOption(QStringLiteral("ytdl-format"), format);  // async, see setOption()
     }
 }
 
@@ -454,7 +459,7 @@ void MpvWidget::applySubtitleSettings() {
     }
     const QSettings s(apppaths::configFile(), QSettings::IniFormat);
     auto setProp = [this](const char* name, const QByteArray& value) {
-        mpv_set_property_string(mpv_, name, value.constData());
+        setOption(QString::fromUtf8(name), QString::fromUtf8(value));  // async
     };
 
     // Which captions to fetch (language + auto-generated opt-in), plus an
