@@ -37,8 +37,18 @@ C++/Qt6 binary.
 
 ## Run the binary
 
-The prebuilt `freeflume` binary is dynamically linked, so the host needs Qt6,
-libmpv, and `yt-dlp` (mpv's package usually provides libmpv):
+The portable binary ships as `freeflume-<version>-x86_64.tar.gz` on the
+[releases page](https://github.com/velkadyneslop/freeflume-linux-qt6/releases).
+Extract it and run — it's already executable (the tarball preserves the mode, so
+no `chmod` needed):
+
+```bash
+tar xzf freeflume-*-x86_64.tar.gz
+./freeflume
+```
+
+It's dynamically linked, so the host needs Qt6, libmpv, and `yt-dlp` (mpv's
+package usually provides libmpv):
 
 ```bash
 # Fedora
