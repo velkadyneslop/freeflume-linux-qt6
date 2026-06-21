@@ -8,6 +8,10 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
+#include <QRegularExpression>
 #include <QUrl>
 
 namespace {
@@ -31,6 +35,213 @@ QString bestThumbnail(const QJsonObject& obj) {
         best = obj.value(QStringLiteral("thumbnail")).toString();
     }
     return best;
+}
+
+// --- InnerTube playlist paging ----------------------------------------------
+//
+// yt-dlp can't extract an anonymous playlist past ~200 items: YouTube stops
+// emitting continuation tokens to scripted clients walking the list. But a
+// playlist continuation token is just a base64'd protobuf encoding the
+// playlist id and an item OFFSET — so we can craft one for any offset and jump
+// straight there in a single request (the browser/NewPipe do the same; they
+// merely walk the chain). No account, cookies, visitor data or PO token needed.
+
+const char* kInnerTubeClientVersion = "2.20240620.05.00";
+
+// Pulls the PL.../UU.../etc. id out of a playlist URL (?list=ID or /playlist).
+QString extractPlaylistId(const QString& url) {
+    static const QRegularExpression re(QStringLiteral("[?&]list=([A-Za-z0-9_-]+)"));
+    const QRegularExpressionMatch m = re.match(url);
+    return m.hasMatch() ? m.captured(1) : QString();
+}
+
+QByteArray pbVarint(quint64 n) {
+    QByteArray out;
+    do {
+        quint8 b = n & 0x7f;
+        n >>= 7;
+        if (n) b |= 0x80;
+        out.append(static_cast<char>(b));
+    } while (n);
+    return out;
+}
+QByteArray pbTag(int field, int wireType) {
+    return pbVarint((static_cast<quint64>(field) << 3) | wireType);
+}
+QByteArray pbVarintField(int field, quint64 value) {
+    return pbTag(field, 0) + pbVarint(value);
+}
+QByteArray pbStringField(int field, const QByteArray& value) {
+    return pbTag(field, 2) + pbVarint(value.size()) + value;
+}
+
+// Builds the continuation token that asks for playlist items starting at
+// `offset` (0-based). Verified byte-for-byte against a real token from YT.
+QByteArray craftPlaylistContinuation(const QString& playlistId, int offset) {
+    const QByteArray pid = playlistId.toUtf8();
+    // Innermost "PT:" payload: field 1 = the offset.
+    const QByteArray pt = pbVarintField(1, static_cast<quint64>(offset));
+    const QByteArray ptStr =
+        QByteArray("PT:") + pt.toBase64(QByteArray::Base64Encoding | QByteArray::OmitTrailingEquals);
+    // Wrapper: { 1: 1, 15: "PT:..." }, base64'd with '=' URL-escaped (YT's form).
+    QByteArray inner = pbVarintField(1, 1) + pbStringField(15, ptStr);
+    QByteArray innerStr = inner.toBase64(QByteArray::Base64Encoding);
+    innerStr.replace("=", "%3D");
+    // Body: { 2: "VL"+id, 3: wrapper, 35: id }, all under field 80226972.
+    const QByteArray body = pbStringField(2, QByteArray("VL") + pid) +
+                            pbStringField(3, innerStr) + pbStringField(35, pid);
+    const QByteArray top = pbStringField(80226972, body);
+    return top.toBase64(QByteArray::Base64UrlEncoding);
+}
+
+// JSON request body for an InnerTube browse call. With a continuation token for
+// a deep offset; with browseId ("VL"+id) for the first page (that response also
+// carries the playlist's total length).
+QByteArray innerTubeBrowseBody(const QString& playlistId, int offset) {
+    QJsonObject client{{QStringLiteral("clientName"), QStringLiteral("WEB")},
+                       {QStringLiteral("clientVersion"),
+                        QString::fromLatin1(kInnerTubeClientVersion)},
+                       {QStringLiteral("hl"), QStringLiteral("en")},
+                       {QStringLiteral("gl"), QStringLiteral("US")}};
+    QJsonObject body{{QStringLiteral("context"),
+                      QJsonObject{{QStringLiteral("client"), client}}}};
+    if (offset == 0) {
+        body.insert(QStringLiteral("browseId"), QStringLiteral("VL") + playlistId);
+    } else {
+        body.insert(QStringLiteral("continuation"),
+                    QString::fromLatin1(craftPlaylistContinuation(playlistId, offset)));
+    }
+    return QJsonDocument(body).toJson(QJsonDocument::Compact);
+}
+
+QNetworkRequest innerTubeRequest() {
+    QNetworkRequest req(QUrl(QStringLiteral(
+        "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false")));
+    req.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    req.setHeader(QNetworkRequest::UserAgentHeader,
+                  QStringLiteral("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                                 "(KHTML, like Gecko) Chrome/126.0 Safari/537.36"));
+    req.setRawHeader("Origin", "https://www.youtube.com");
+    req.setRawHeader("X-Youtube-Client-Name", "1");
+    req.setRawHeader("X-Youtube-Client-Version", kInnerTubeClientVersion);
+    return req;
+}
+
+// "10:10" / "1:02:03" -> seconds; 0 if not a time string.
+qint64 parseClockDuration(const QString& text) {
+    const QStringList parts = text.split(QLatin1Char(':'));
+    if (parts.size() < 2 || parts.size() > 3) return 0;
+    qint64 total = 0;
+    for (const QString& p : parts) {
+        bool ok = false;
+        const int v = p.toInt(&ok);
+        if (!ok || v < 0) return 0;
+        total = total * 60 + v;
+    }
+    return total;
+}
+
+// Recursively finds a video-duration badge ("mm:ss") inside a lockup item.
+qint64 findLockupDuration(const QJsonValue& v) {
+    if (v.isObject()) {
+        const QJsonObject o = v.toObject();
+        if (o.contains(QStringLiteral("thumbnailBadgeViewModel"))) {
+            const QString t = o.value(QStringLiteral("thumbnailBadgeViewModel"))
+                                  .toObject()
+                                  .value(QStringLiteral("text"))
+                                  .toString();
+            const qint64 secs = parseClockDuration(t);
+            if (secs > 0) return secs;
+        }
+        for (const QJsonValue& child : o) {
+            const qint64 secs = findLockupDuration(child);
+            if (secs > 0) return secs;
+        }
+    } else if (v.isArray()) {
+        for (const QJsonValue& child : v.toArray()) {
+            const qint64 secs = findLockupDuration(child);
+            if (secs > 0) return secs;
+        }
+    }
+    return 0;
+}
+
+// Turns one lockupViewModel (the modern playlist/search item) into a result.
+SearchResult parseLockup(const QJsonObject& lv) {
+    SearchResult r;
+    r.id = lv.value(QStringLiteral("contentId")).toString();
+    if (r.id.isEmpty()) return r;
+    r.kind = ResultKind::Video;
+    r.url = QStringLiteral("https://www.youtube.com/watch?v=") + r.id;
+    r.thumbnailUrl = QStringLiteral("https://i.ytimg.com/vi/%1/hqdefault.jpg").arg(r.id);
+
+    const QJsonObject md = lv.value(QStringLiteral("metadata"))
+                               .toObject()
+                               .value(QStringLiteral("lockupMetadataViewModel"))
+                               .toObject();
+    r.title = md.value(QStringLiteral("title")).toObject().value(QStringLiteral("content")).toString();
+    const QJsonArray rows = md.value(QStringLiteral("metadata"))
+                                .toObject()
+                                .value(QStringLiteral("contentMetadataViewModel"))
+                                .toObject()
+                                .value(QStringLiteral("metadataRows"))
+                                .toArray();
+    if (!rows.isEmpty()) {
+        const QJsonArray parts =
+            rows.first().toObject().value(QStringLiteral("metadataParts")).toArray();
+        if (!parts.isEmpty()) {
+            r.channel = parts.first()
+                            .toObject()
+                            .value(QStringLiteral("text"))
+                            .toObject()
+                            .value(QStringLiteral("content"))
+                            .toString();
+        }
+    }
+    r.durationSeconds = findLockupDuration(lv.value(QStringLiteral("contentImage")));
+    return r;
+}
+
+// Collects every lockup item (in document order) from a browse response.
+void collectLockups(const QJsonValue& v, QList<SearchResult>& out) {
+    if (v.isObject()) {
+        const QJsonObject o = v.toObject();
+        if (o.contains(QStringLiteral("lockupViewModel"))) {
+            SearchResult r = parseLockup(o.value(QStringLiteral("lockupViewModel")).toObject());
+            if (!r.id.isEmpty() && !r.title.isEmpty()) {
+                out.push_back(std::move(r));
+            }
+        }
+        for (const QJsonValue& child : o) {
+            collectLockups(child, out);
+        }
+    } else if (v.isArray()) {
+        for (const QJsonValue& child : v.toArray()) {
+            collectLockups(child, out);
+        }
+    }
+}
+
+// Finds the playlist length ("1,005 videos") in an initial browse response.
+int findPlaylistTotal(const QJsonValue& v) {
+    static const QRegularExpression re(QStringLiteral("^([\\d,]+) videos?$"));
+    if (v.isString()) {
+        const QRegularExpressionMatch m = re.match(v.toString());
+        if (m.hasMatch()) {
+            return m.captured(1).remove(QLatin1Char(',')).toInt();
+        }
+    } else if (v.isObject()) {
+        for (const QJsonValue& child : v.toObject()) {
+            const int n = findPlaylistTotal(child);
+            if (n > 0) return n;
+        }
+    } else if (v.isArray()) {
+        for (const QJsonValue& child : v.toArray()) {
+            const int n = findPlaylistTotal(child);
+            if (n > 0) return n;
+        }
+    }
+    return 0;
 }
 
 // Picks the storyboard level with tile width nearest 160 px (a good preview
@@ -203,7 +414,7 @@ SearchResult parseEntry(const QJsonObject& obj) {
 Extractor::Extractor(QObject* parent) : QObject(parent) {}
 
 bool Extractor::busy() const {
-    return proc_ && proc_->state() != QProcess::NotRunning;
+    return (proc_ && proc_->state() != QProcess::NotRunning) || pageReply_;
 }
 
 void Extractor::cancel() {
@@ -212,6 +423,12 @@ void Extractor::cancel() {
         proc_->kill();
         proc_->deleteLater();
         proc_ = nullptr;
+    }
+    if (pageReply_) {
+        pageReply_->disconnect(this);
+        pageReply_->abort();
+        pageReply_->deleteLater();
+        pageReply_ = nullptr;
     }
 }
 
@@ -279,6 +496,13 @@ void Extractor::fetchChannel(const QString& channelUrl, int page, int pageSize, 
                              channelUrl.contains(QLatin1String("/user/"));
     const bool isPlaylist = channelUrl.contains(QLatin1String("list=")) ||
                             channelUrl.contains(QLatin1String("/playlist"));
+    // Playlists go through InnerTube directly: yt-dlp can't reach anonymous
+    // playlist items past ~200, but a crafted continuation token can jump to
+    // any page. (Channels still extract fine via yt-dlp.)
+    if (isPlaylist) {
+        fetchPlaylistPage(channelUrl, page, pageSize);
+        return;
+    }
     // Page 1 of an actual channel also pulls its /streams tab so a currently-live
     // (or upcoming) stream can be shown — the /videos tab omits streams entirely.
     // handleFinished then keeps the uploads + only the live/upcoming stream entries
@@ -301,6 +525,97 @@ void Extractor::searchInChannel(const QString& channelUrl, const QString& query,
                             .arg(channelBaseUrl(channelUrl),
                                  QString::fromUtf8(QUrl::toPercentEncoding(query)));
     runFlat({url}, channelUrl, start, end);
+}
+
+void Extractor::fetchPlaylistPage(const QString& playlistUrl, int page, int pageSize) {
+    cancel();
+    query_ = playlistUrl;
+    pinLiveFirst_ = false;
+    emit searchStarted(playlistUrl);
+
+    const QString plid = extractPlaylistId(playlistUrl);
+    if (plid.isEmpty()) {
+        emit searchFailed(QStringLiteral("Could not read the playlist id from the URL."));
+        return;
+    }
+    const int offset = (page - 1) * pageSize;
+    if (!net_) {
+        net_ = new QNetworkAccessManager(this);
+    }
+    pageReply_ = net_->post(innerTubeRequest(), innerTubeBrowseBody(plid, offset));
+    // The first request (offset 0) also carries the playlist's total length.
+    connect(pageReply_, &QNetworkReply::finished, this,
+            [this, pageSize, wantTotal = (offset == 0)]() {
+                handlePlaylistPageReply(pageReply_, pageSize, wantTotal);
+            });
+}
+
+void Extractor::handlePlaylistPageReply(QNetworkReply* reply, int pageSize, bool wantTotal) {
+    if (reply != pageReply_) {
+        return;  // a stale reply we already abandoned
+    }
+    pageReply_ = nullptr;
+    const QNetworkReply::NetworkError netErr = reply->error();
+    const QByteArray out = reply->readAll();
+    reply->deleteLater();
+
+    if (netErr != QNetworkReply::NoError) {
+        emit searchFailed(QStringLiteral("Could not reach YouTube to load the playlist."));
+        return;
+    }
+    const QJsonDocument doc = QJsonDocument::fromJson(out);
+    if (doc.isNull()) {
+        emit searchFailed(QStringLiteral("Could not parse the playlist response."));
+        return;
+    }
+
+    QList<SearchResult> all;
+    collectLockups(QJsonValue(doc.object()), all);
+    // A browse response holds up to ~100 items from the offset; keep this page's.
+    QList<SearchResult> pageItems = all.mid(0, pageSize);
+
+    if (wantTotal) {
+        emit searchTotalKnown(findPlaylistTotal(QJsonValue(doc.object())));
+    }
+    emit searchFinished(pageItems);
+}
+
+void Extractor::requestPlaylistChunk(const QString& playlistId, int offset) {
+    if (!net_) {
+        net_ = new QNetworkAccessManager(this);
+    }
+    chunkReply_ = net_->post(innerTubeRequest(), innerTubeBrowseBody(playlistId, offset));
+    connect(chunkReply_, &QNetworkReply::finished, this,
+            [this, playlistId, offset]() {
+                handlePlaylistChunkReply(chunkReply_, playlistId, offset);
+            });
+}
+
+void Extractor::handlePlaylistChunkReply(QNetworkReply* reply, const QString& playlistId,
+                                         int offset) {
+    if (reply != chunkReply_) {
+        return;
+    }
+    chunkReply_ = nullptr;
+    const bool ok = reply->error() == QNetworkReply::NoError;
+    const QByteArray out = reply->readAll();
+    reply->deleteLater();
+
+    int got = 0;
+    if (ok) {
+        const QJsonDocument doc = QJsonDocument::fromJson(out);
+        QList<SearchResult> chunk;
+        collectLockups(QJsonValue(doc.object()), chunk);
+        got = chunk.size();
+        playlistAccum_ += chunk;
+    }
+    // A full chunk is 100 items; a short (or empty) one means the end. Cap the
+    // walk so a malformed response can't loop forever.
+    if (ok && got >= 100 && offset < 100000) {
+        requestPlaylistChunk(playlistId, offset + got);
+        return;
+    }
+    emit playlistItemsReady(playlistAccum_, playlistUrl_);
 }
 
 void Extractor::runFlat(const QStringList& targets, const QString& label, int start, int end,
@@ -383,12 +698,28 @@ void Extractor::handleError(QProcess::ProcessError error) {
 }
 
 void Extractor::fetchPlaylistItems(const QString& url) {
+    playlistUrl_ = url;
+
+    // Playlists: walk the whole thing via InnerTube (100 items per request) so
+    // the play queue isn't capped at yt-dlp's ~200-item anonymous ceiling.
+    const QString plid = extractPlaylistId(url);
+    if (!plid.isEmpty()) {
+        if (chunkReply_) {
+            chunkReply_->disconnect(this);
+            chunkReply_->abort();
+            chunkReply_->deleteLater();
+            chunkReply_ = nullptr;
+        }
+        playlistAccum_.clear();
+        requestPlaylistChunk(plid, 0);
+        return;
+    }
+
     if (playlistProc_) {
         playlistProc_->disconnect(this);
         playlistProc_->kill();
         playlistProc_->deleteLater();
     }
-    playlistUrl_ = url;
     playlistProc_ = new QProcess(this);
     connect(playlistProc_, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
             this, &Extractor::handlePlaylistFinished);

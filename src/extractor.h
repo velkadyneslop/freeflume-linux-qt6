@@ -9,6 +9,11 @@
 #include <QProcess>
 #include <QString>
 
+QT_BEGIN_NAMESPACE
+class QNetworkAccessManager;
+class QNetworkReply;
+QT_END_NAMESPACE
+
 // What a search result points to.
 enum class ResultKind { Video, Short, Channel, Playlist };
 
@@ -141,6 +146,16 @@ private:
     void handleDetailsFinished(int exitCode, QProcess::ExitStatus status);
     void handlePlaylistFinished(int exitCode, QProcess::ExitStatus status);
 
+    // Loads one page of a playlist directly via YouTube's InnerTube browse API.
+    // yt-dlp can't extract anonymous playlists past ~200 items; a crafted
+    // continuation token jumps straight to any offset, so this is the path used
+    // for playlists instead of runFlat(). page is 1-based.
+    void fetchPlaylistPage(const QString& playlistUrl, int page, int pageSize);
+    void handlePlaylistPageReply(QNetworkReply* reply, int pageSize, bool wantTotal);
+    // Walks the whole playlist (100 items per request) for the play queue.
+    void requestPlaylistChunk(const QString& playlistId, int offset);
+    void handlePlaylistChunkReply(QNetworkReply* reply, const QString& playlistId, int offset);
+
     QProcess* proc_ = nullptr;
     QProcess* detailsProc_ = nullptr;
     QProcess* playlistProc_ = nullptr;
@@ -148,6 +163,11 @@ private:
     QString query_;
     QString detailsUrl_;
     QString playlistUrl_;
+
+    QNetworkAccessManager* net_ = nullptr;
+    QNetworkReply* pageReply_ = nullptr;     // in-flight playlist page request
+    QNetworkReply* chunkReply_ = nullptr;    // in-flight whole-playlist walk request
+    QList<SearchResult> playlistAccum_;      // accumulates the whole-playlist walk
 };
 
 Q_DECLARE_METATYPE(VideoDetails)
