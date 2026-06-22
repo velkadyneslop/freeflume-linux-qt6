@@ -59,6 +59,12 @@ WL_SHELL="$QT_PLUGINS_DIR/wayland-shell-integration/libxdg-shell.so"
 WL_EGL="$QT_PLUGINS_DIR/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so"
 WL_DECO="$QT_PLUGINS_DIR/wayland-decoration-client/libbradient.so"
 
+# KDE platform theme (plasma-integration): lets the AppImage read the host's
+# kdeglobals color scheme on KDE so it matches the native build. Pulls a KF6/KIO
+# closure via --library; AppRun only activates it (QT_QPA_PLATFORMTHEME=kde) on
+# KDE sessions, so non-KDE hosts are unaffected.
+KDE_PLATFORM_THEME="$QT_PLUGINS_DIR/platformthemes/KDEPlasmaPlatformTheme6.so"
+
 cd /tmp
 # Qt6's xcb plugin dlopens libxcb-cursor, so linuxdeploy won't catch it — bundle
 # it explicitly or the app won't start on hosts lacking it.
@@ -71,6 +77,7 @@ linuxdeploy --appdir "$APPDIR" --plugin qt \
     --library "$WL_SHELL" \
     --library "$WL_EGL" \
     --library "$WL_DECO" \
+    --library "$KDE_PLATFORM_THEME" \
     --custom-apprun /src/packaging/appimage/AppRun \
     --desktop-file "$APPDIR/usr/share/applications/org.freeflume.Desktop.desktop" \
     --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/freeflume.png"
@@ -98,6 +105,12 @@ for p in platforms/libqwayland.so \
          wayland-decoration-client/libbradient.so; do
     patchelf --set-rpath '$ORIGIN/../../lib' "$APPDIR/usr/plugins/$p"
 done
+
+# Relocate the KDE platform theme into platformthemes/ (its KF6/KIO deps stay in
+# usr/lib). Activated by AppRun via QT_QPA_PLATFORMTHEME=kde on KDE sessions.
+mkdir -p "$APPDIR/usr/plugins/platformthemes"
+mv "$APPDIR/usr/lib/KDEPlasmaPlatformTheme6.so" "$APPDIR/usr/plugins/platformthemes/"
+patchelf --set-rpath '$ORIGIN/../../lib' "$APPDIR/usr/plugins/platformthemes/KDEPlasmaPlatformTheme6.so"
 
 # Slim the bundle (smaller download + smaller self-update deltas): ffmpeg's flite (speech synth,
 # ~20 MB of voice data) and sphinx (speech recognition) libs are only used by

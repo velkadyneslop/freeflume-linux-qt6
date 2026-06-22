@@ -34,8 +34,11 @@ RUN apt-get install -y --no-install-recommends \
 # qt6-wayland: the native Wayland platform plugin, so the AppImage runs on
 # Wayland directly (no XWayland) and KWin gets the window icon via the
 # xdg-toplevel-icon protocol.
+# plasma-integration: the KDE platform theme (KDEPlasmaPlatformTheme6), so the
+# AppImage reads the host's kdeglobals color scheme on KDE — matching the native
+# build instead of falling back to a hardcoded palette.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        qt6-declarative-dev qt6-wayland \
+        qt6-declarative-dev qt6-wayland plasma-integration \
     && rm -rf /var/lib/apt/lists/*
 
 # linuxdeploy + Qt plugin + appimagetool + appimageupdatetool (run with

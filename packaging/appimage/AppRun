@@ -14,6 +14,17 @@ export FREEFLUME_APPIMAGE=1
 # on X11 sessions, and honor an explicit user override of QT_QPA_PLATFORM.
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
 
+# On KDE, load the bundled KDE platform integration so the app reads the host's
+# kdeglobals color scheme (matches the native build). Elsewhere leave it unset
+# and let FreeFlume apply its own palette. FREEFLUME_KDE_PLATFORM_THEME tells the
+# app the platform palette is authoritative (don't override it).
+case ":${XDG_CURRENT_DESKTOP:-}:" in
+    *:KDE:*)
+        export QT_QPA_PLATFORMTHEME="${QT_QPA_PLATFORMTHEME:-kde}"
+        export FREEFLUME_KDE_PLATFORM_THEME=1
+        ;;
+esac
+
 # Self-update: `FreeFlume.AppImage --update` updates the file in place via the
 # embedded gh-releases-zsync info (only the changed chunks are downloaded).
 # $APPIMAGE is set by the runtime to the outer .AppImage path. The bundled

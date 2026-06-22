@@ -26,6 +26,13 @@ bool inAppImage() {
            qEnvironmentVariableIsSet("APPIMAGE");
 }
 
+// True when the AppImage's bundled KDE platform integration is active (set by
+// AppRun on KDE sessions). With it loaded, Qt's palette already reflects the
+// host's kdeglobals color scheme, so we must NOT override it with our fallback.
+bool kdePlatformThemeActive() {
+    return qEnvironmentVariableIsSet("FREEFLUME_KDE_PLATFORM_THEME");
+}
+
 // Ask the freedesktop appearance portal whether the host prefers dark (works on
 // KDE + GNOME). 1 = dark, 2 = light, 0 = no preference.
 bool systemPrefersDark() {
@@ -127,13 +134,14 @@ void applyColorScheme(const QString& mode) {
 #endif
         QApplication::setPalette(darkPalette());
         dark = true;
-    } else if (inAppImage()) {
-        // No desktop integration in the AppImage — follow the host via the
-        // appearance portal and apply our own palette.
+    } else if (inAppImage() && !kdePlatformThemeActive()) {
+        // AppImage without KDE integration (e.g. on GNOME) — follow the host via
+        // the appearance portal and apply our own palette.
         dark = systemPrefersDark();
         QApplication::setPalette(dark ? darkPalette() : lightPalette());
     } else {
-        // Native/Flatpak: drop our override and let the platform follow the system.
+        // Native/Flatpak, or AppImage-on-KDE with the bundled platform theme:
+        // keep the platform-provided palette, which already reflects the system.
 #if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
         hints->setColorScheme(Qt::ColorScheme::Unknown);
 #endif
