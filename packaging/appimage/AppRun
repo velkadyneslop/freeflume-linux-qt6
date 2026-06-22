@@ -9,6 +9,11 @@ export PATH="${HERE}/usr/bin:${PATH}"
 export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 export FREEFLUME_APPIMAGE=1
 
+# Prefer native Wayland (better for video; the window icon is delivered via the
+# xdg-toplevel-icon protocol, not XWayland's _NET_WM_ICON). Fall back to xcb only
+# on X11 sessions, and honor an explicit user override of QT_QPA_PLATFORM.
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
+
 # Self-update: `FreeFlume.AppImage --update` updates the file in place via the
 # embedded gh-releases-zsync info (only the changed chunks are downloaded).
 # $APPIMAGE is set by the runtime to the outer .AppImage path. The bundled

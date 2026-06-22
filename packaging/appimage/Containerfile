@@ -1,18 +1,41 @@
 # Build environment for the FreeFlume AppImage.
-# Ubuntu 24.04 = Qt 6.4 + a clean libmpv dependency tree (unlike Fedora's
-# kitchen-sink build) + glibc 2.39 (broad desktop compatibility).
+#
+# Base: Ubuntu 24.04 (glibc 2.39) overlaid with the KDE neon "noble" archive.
+# Stock 24.04 still ships Plasma 5 / Qt5, so it has NO Qt6 Breeze widget style;
+# neon-on-noble provides the Qt6 build of Qt + KF6 + the Breeze style while
+# keeping the 2.39 glibc floor (so the AppImage's reach doesn't regress).
+# (KDE neon's own Docker images are abandoned — stuck on 22.04/Plasma 5 since
+# 2023 — so we overlay the apt archive instead.)
 FROM docker.io/library/ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake ninja-build pkg-config file ca-certificates wget patchelf \
+# Add the KDE neon User Edition (noble) archive + signing key. Its newer Qt6/KF6
+# then takes precedence over stock 24.04 when the build deps are installed below.
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates wget gnupg \
+    && wget -qO /etc/apt/trusted.gpg.d/neon.asc https://archive.neon.kde.org/public.key \
+    && echo "deb http://archive.neon.kde.org/user noble main" > /etc/apt/sources.list.d/neon.list \
+    && apt-get update
+
+RUN apt-get install -y --no-install-recommends \
+        build-essential cmake ninja-build pkg-config file patchelf \
         qt6-base-dev qt6-base-dev-tools libqt6opengl6-dev \
         libqt6sql6-sqlite qt6-qpa-plugins \
         libqt6svg6 \
         libmpv-dev \
         libgl1-mesa-dev libegl1-mesa-dev \
         libxcb-cursor0 \
+        kde-style-breeze \
         breeze-icon-theme hicolor-icon-theme \
+    && rm -rf /var/lib/apt/lists/*
+
+# qt6-declarative-dev: neon's Breeze/KF6 transitively links Qt6Qml, so
+# linuxdeploy-plugin-qt enters its QML-deploy path and needs qmlimportscanner
+# (shipped here). Our app uses no QML; this is only to let the Qt plugin finish.
+# qt6-wayland: the native Wayland platform plugin, so the AppImage runs on
+# Wayland directly (no XWayland) and KWin gets the window icon via the
+# xdg-toplevel-icon protocol.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        qt6-declarative-dev qt6-wayland \
     && rm -rf /var/lib/apt/lists/*
 
 # linuxdeploy + Qt plugin + appimagetool + appimageupdatetool (run with

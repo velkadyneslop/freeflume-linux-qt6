@@ -146,9 +146,17 @@ void applyColorScheme(const QString& mode) {
 void applyStyle(const QString& styleName) {
     QString target;
     if (styleName.isEmpty() || styleName == QLatin1String("native")) {
-        // The AppImage has no native KDE style, so default to Fusion for a clean,
-        // consistent look; everywhere else keep the platform default (Breeze on KDE).
-        target = inAppImage() ? QStringLiteral("Fusion") : defaultStyleKey();
+        if (inAppImage()) {
+            // The AppImage bundles the Qt6 Breeze style, so default to it for the
+            // KDE look that matches the Flatpak. If that plugin somehow isn't
+            // present, fall back to Fusion (always built into Qt) for a clean,
+            // consistent look. Everywhere else keep the platform default.
+            target = QStyleFactory::keys().contains(QStringLiteral("Breeze"))
+                         ? QStringLiteral("Breeze")
+                         : QStringLiteral("Fusion");
+        } else {
+            target = defaultStyleKey();
+        }
     } else {
         target = styleName;
     }

@@ -39,6 +39,26 @@ cp "$QT_PLUGINS_DIR/iconengines/libqsvgicon.so" "$APPDIR/usr/plugins/iconengines
 # linuxdeploy won't patch a file we add, so point it at the bundled libs itself.
 patchelf --set-rpath '$ORIGIN/../../lib' "$APPDIR/usr/plugins/iconengines/libqsvgicon.so"
 
+# The Qt6 Breeze widget style (from KDE neon) — the AppImage's default look, to
+# match the KDE/Flatpak build. Passed to linuxdeploy via --library so it pulls
+# Breeze's KF6 dependencies into usr/lib using the proper exclude list; we then
+# relocate the plugin itself into the styles dir below.
+BREEZE_STYLE="$QT_PLUGINS_DIR/styles/breeze6.so"
+
+# Native Wayland plugins. linuxdeploy-plugin-qt does NOT deploy the Wayland
+# stack, so pass each piece via --library (which pulls libQt6WaylandClient and
+# friends into usr/lib) and relocate them into the right plugin subdirs below:
+#   platforms/libqwayland.so .......................... the Wayland platform plugin
+#   wayland-shell-integration/libxdg-shell.so ......... xdg-shell (window creation, KWin)
+#   wayland-graphics-integration-client/libqt-plugin-wayland-egl.so  EGL/GL (mpv widget)
+#   wayland-decoration-client/libbradient.so .......... client-side decorations fallback
+# The platform plugin dlopens the shell/EGL/decoration plugins at runtime, so
+# they must all be present or native Wayland silently fails to xcb.
+WL_PLATFORM="$QT_PLUGINS_DIR/platforms/libqwayland.so"
+WL_SHELL="$QT_PLUGINS_DIR/wayland-shell-integration/libxdg-shell.so"
+WL_EGL="$QT_PLUGINS_DIR/wayland-graphics-integration-client/libqt-plugin-wayland-egl.so"
+WL_DECO="$QT_PLUGINS_DIR/wayland-decoration-client/libbradient.so"
+
 cd /tmp
 # Qt6's xcb plugin dlopens libxcb-cursor, so linuxdeploy won't catch it — bundle
 # it explicitly or the app won't start on hosts lacking it.
@@ -46,9 +66,38 @@ chmod +x /src/packaging/appimage/AppRun
 # Bundle (no --output); we package separately with xz for a smaller file.
 linuxdeploy --appdir "$APPDIR" --plugin qt \
     --library /usr/lib/x86_64-linux-gnu/libxcb-cursor.so.0 \
+    --library "$BREEZE_STYLE" \
+    --library "$WL_PLATFORM" \
+    --library "$WL_SHELL" \
+    --library "$WL_EGL" \
+    --library "$WL_DECO" \
     --custom-apprun /src/packaging/appimage/AppRun \
     --desktop-file "$APPDIR/usr/share/applications/org.freeflume.Desktop.desktop" \
     --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/freeflume.png"
+
+# --library put breeze6.so (and its KF6 deps) in usr/lib. Move the style plugin
+# into the Qt styles dir where QStyleFactory looks, and repoint its RUNPATH at
+# the bundled libs. Its dependencies stay in usr/lib, already rpath-patched.
+mkdir -p "$APPDIR/usr/plugins/styles"
+mv "$APPDIR/usr/lib/breeze6.so" "$APPDIR/usr/plugins/styles/breeze6.so"
+patchelf --set-rpath '$ORIGIN/../../lib' "$APPDIR/usr/plugins/styles/breeze6.so"
+
+# Same for the Wayland plugins: relocate each from usr/lib (where --library put
+# them) into its Qt plugin subdir, with RUNPATH pointing at the bundled libs.
+mkdir -p "$APPDIR/usr/plugins/platforms" \
+         "$APPDIR/usr/plugins/wayland-shell-integration" \
+         "$APPDIR/usr/plugins/wayland-graphics-integration-client" \
+         "$APPDIR/usr/plugins/wayland-decoration-client"
+mv "$APPDIR/usr/lib/libqwayland.so"              "$APPDIR/usr/plugins/platforms/"
+mv "$APPDIR/usr/lib/libxdg-shell.so"             "$APPDIR/usr/plugins/wayland-shell-integration/"
+mv "$APPDIR/usr/lib/libqt-plugin-wayland-egl.so" "$APPDIR/usr/plugins/wayland-graphics-integration-client/"
+mv "$APPDIR/usr/lib/libbradient.so"              "$APPDIR/usr/plugins/wayland-decoration-client/"
+for p in platforms/libqwayland.so \
+         wayland-shell-integration/libxdg-shell.so \
+         wayland-graphics-integration-client/libqt-plugin-wayland-egl.so \
+         wayland-decoration-client/libbradient.so; do
+    patchelf --set-rpath '$ORIGIN/../../lib' "$APPDIR/usr/plugins/$p"
+done
 
 # Slim the bundle (smaller download + smaller self-update deltas): ffmpeg's flite (speech synth,
 # ~20 MB of voice data) and sphinx (speech recognition) libs are only used by
