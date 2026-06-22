@@ -5,6 +5,7 @@
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QDesktopServices>
 #include <QFileDialog>
 #include <QFontComboBox>
 #include <QFormLayout>
@@ -12,6 +13,7 @@
 #include <QKeyCombination>
 #include <QKeySequenceEdit>
 #include <QLabel>
+#include <QMessageBox>
 #include <QProcess>
 #include <QPushButton>
 #include <QScrollArea>
@@ -20,12 +22,14 @@
 #include <QSpinBox>
 #include <QStandardPaths>
 #include <QCoreApplication>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include "database.h"
 #include "shortcuts.h"
 #include "sponsorcategories.h"
 #include "theme.h"
+#include "updatecheck.h"
 
 #ifndef FREEFLUME_VERSION
 #define FREEFLUME_VERSION "dev"  // set by CMake from PROJECT_VERSION
@@ -297,6 +301,13 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
                    new QLabel(QStringLiteral("FreeFlume %1").arg(QStringLiteral(FREEFLUME_VERSION)),
                               about));
     abForm->addRow(tr("License:"), new QLabel(QStringLiteral("GPL-3.0-or-later"), about));
+    notifyUpdates_ = new QCheckBox(tr("Notify me about new FreeFlume versions"), about);
+    notifyUpdates_->setToolTip(
+        tr("Off by default. When on, checks GitHub releases on startup "
+           "(anonymous; no account) and shows a banner if a newer version exists."));
+    abForm->addRow(QString(), notifyUpdates_);
+    checkUpdatesBtn_ = new QPushButton(tr("Check for updates now"), about);
+    abForm->addRow(QString(), checkUpdatesBtn_);
     col->addWidget(about);
 
     col->addStretch();
@@ -313,6 +324,43 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     connect(style_, &QComboBox::currentIndexChanged, this, [this] {
         theme::applyStyle(style_->currentData().toString());
         save();
+    });
+    connect(notifyUpdates_, &QCheckBox::toggled, this, [this] { save(); });
+    connect(checkUpdatesBtn_, &QPushButton::clicked, this, [this] {
+        checkUpdatesBtn_->setEnabled(false);
+        checkUpdatesBtn_->setText(tr("Checking…"));
+        auto* chk = new UpdateChecker(this);
+        auto reset = [this] {
+            checkUpdatesBtn_->setEnabled(true);
+            checkUpdatesBtn_->setText(tr("Check for updates now"));
+        };
+        connect(chk, &UpdateChecker::updateAvailable, this,
+                [this, chk, reset](const QString& v, const QString& url) {
+                    reset();
+                    QMessageBox box(QMessageBox::Information, tr("Update available"),
+                                    tr("FreeFlume %1 is available.\nYou have %2.")
+                                        .arg(v, QStringLiteral(FREEFLUME_VERSION)),
+                                    QMessageBox::Close, this);
+                    QPushButton* open = box.addButton(tr("View release"), QMessageBox::AcceptRole);
+                    box.exec();
+                    if (box.clickedButton() == open) {
+                        QDesktopServices::openUrl(QUrl(url));
+                    }
+                    chk->deleteLater();
+                });
+        connect(chk, &UpdateChecker::upToDate, this, [this, chk, reset] {
+            reset();
+            QMessageBox::information(
+                this, tr("Up to date"),
+                tr("You're running the latest FreeFlume (%1).").arg(QStringLiteral(FREEFLUME_VERSION)));
+            chk->deleteLater();
+        });
+        connect(chk, &UpdateChecker::checkFailed, this, [this, chk, reset](const QString& err) {
+            reset();
+            QMessageBox::warning(this, tr("Update check failed"), err);
+            chk->deleteLater();
+        });
+        chk->check(/*force=*/true);
     });
     connect(quality_, &QComboBox::currentIndexChanged, this, [this] { save(); });
     connect(volume_, &QSpinBox::valueChanged, this, [this] { save(); });
@@ -415,6 +463,7 @@ void SettingsPage::load() {
     const QString style = s.value(QStringLiteral("appearance/style"),
                                   QStringLiteral("native")).toString();
     style_->setCurrentIndex(qMax(0, style_->findData(style)));
+    notifyUpdates_->setChecked(s.value(QStringLiteral("updates/notify"), false).toBool());
     const QString quality = s.value(QStringLiteral("playback/quality"),
                                     QStringLiteral("Auto")).toString();
     quality_->setCurrentIndex(qMax(0, quality_->findText(quality)));
@@ -515,6 +564,7 @@ void SettingsPage::save() {
     QSettings s(apppaths::configFile(), QSettings::IniFormat);
     s.setValue(QStringLiteral("appearance/colorScheme"), colorScheme_->currentData());
     s.setValue(QStringLiteral("appearance/style"), style_->currentData());
+    s.setValue(QStringLiteral("updates/notify"), notifyUpdates_->isChecked());
     s.setValue(QStringLiteral("playback/quality"), quality_->currentText());
     s.setValue(QStringLiteral("playback/volume"), volume_->value());
     s.setValue(QStringLiteral("playback/hwdec"), hwdecMode_->currentData());

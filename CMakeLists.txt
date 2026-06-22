@@ -47,6 +47,7 @@ add_executable(freeflume
     src/downloadmanager.cpp
     src/downloadspage.cpp
     src/shortcuts.cpp
+    src/updatecheck.cpp
     src/reorderlistwidget.h  # header-only QObject; listed so AUTOMOC processes it
     packaging/icons/freeflume.qrc
 )

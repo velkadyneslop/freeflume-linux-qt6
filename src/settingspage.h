@@ -29,6 +29,8 @@ private:
 
     QComboBox* colorScheme_ = nullptr;
     QComboBox* style_ = nullptr;
+    QCheckBox* notifyUpdates_ = nullptr;
+    QPushButton* checkUpdatesBtn_ = nullptr;
     QComboBox* quality_ = nullptr;
     QSpinBox* volume_ = nullptr;
     QComboBox* hwdecMode_ = nullptr;

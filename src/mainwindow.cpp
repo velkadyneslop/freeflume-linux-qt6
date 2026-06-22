@@ -3,8 +3,12 @@
 #include "mainwindow.h"
 
 #include <QCompleter>
+#include <QDesktopServices>
 #include <QEvent>
+#include <QFrame>
 #include <QHBoxLayout>
+#include <QPushButton>
+#include <QToolButton>
 #include <QSignalBlocker>
 #include <QIcon>
 #include <QJsonArray>
@@ -43,6 +47,11 @@
 #include "settingspage.h"
 #include "subscriptionspage.h"
 #include "thumbnailloader.h"
+#include "updatecheck.h"
+
+#ifndef FREEFLUME_VERSION
+#define FREEFLUME_VERSION "dev"  // set by CMake from PROJECT_VERSION
+#endif
 
 namespace {
 
@@ -190,10 +199,27 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
     rightCol->addWidget(pages_, /*stretch=*/1);
 
+    // Update bar sits at the very top of the content column, above the search
+    // bar; hidden until a newer release is found.
+    rightCol->insertWidget(0, buildUpdateBanner());
+
     root->addWidget(right, /*stretch=*/1);
     setCentralWidget(central);
 
     statusBar()->showMessage(QStringLiteral("Ready · yt-dlp + mpv backends"));
+
+    // Look for a newer FreeFlume shortly after startup (never blocks first
+    // paint; obeys the opt-out and the once-per-20h throttle).
+    updateChecker_ = new UpdateChecker(this);
+    connect(updateChecker_, &UpdateChecker::updateAvailable, this,
+            [this](const QString& version, const QString& url) {
+                updateUrl_ = url;
+                updateBannerText_->setText(
+                    tr("FreeFlume %1 is available (you have %2).")
+                        .arg(version, QStringLiteral(FREEFLUME_VERSION)));
+                updateBanner_->setVisible(true);
+            });
+    QTimer::singleShot(4000, this, [this] { maybeCheckForUpdates(); });
 
     // Ctrl+K → jump to Search and focus the search box.
     auto* focusSearch = new QShortcut(QKeySequence(Qt::CTRL | Qt::Key_K), this);
@@ -204,6 +230,55 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     });
 
     nav_->setCurrentRow(0);
+}
+
+QWidget* MainWindow::buildUpdateBanner() {
+    auto* bar = new QFrame(this);
+    bar->setObjectName(QStringLiteral("UpdateBanner"));
+    bar->setFrameShape(QFrame::StyledPanel);
+    bar->setVisible(false);  // shown only when a newer release is found
+    auto* row = new QHBoxLayout(bar);
+    row->setContentsMargins(10, 5, 6, 5);
+    row->setSpacing(8);
+
+    auto* icon = new QLabel(bar);
+    icon->setPixmap(QIcon::fromTheme(QStringLiteral("software-update-available"),
+                                     QIcon::fromTheme(QStringLiteral("system-software-update")))
+                        .pixmap(16, 16));
+    row->addWidget(icon);
+
+    updateBannerText_ = new QLabel(bar);
+    updateBannerText_->setTextFormat(Qt::PlainText);
+    row->addWidget(updateBannerText_);
+    row->addStretch(1);
+
+    auto* view = new QPushButton(tr("View release"), bar);
+    connect(view, &QPushButton::clicked, this, [this] {
+        if (!updateUrl_.isEmpty()) {
+            QDesktopServices::openUrl(QUrl(updateUrl_));
+        }
+    });
+    row->addWidget(view);
+
+    auto* close = new QToolButton(bar);
+    close->setIcon(QIcon::fromTheme(QStringLiteral("window-close"),
+                                    QIcon::fromTheme(QStringLiteral("dialog-close"))));
+    close->setAutoRaise(true);
+    close->setToolTip(tr("Dismiss"));
+    connect(close, &QToolButton::clicked, this, [this] { updateBanner_->setVisible(false); });
+    row->addWidget(close);
+
+    updateBanner_ = bar;
+    return bar;
+}
+
+void MainWindow::maybeCheckForUpdates() {
+    const bool notify = QSettings(apppaths::configFile(), QSettings::IniFormat)
+                            .value(QStringLiteral("updates/notify"), false)
+                            .toBool();
+    if (notify && updateChecker_) {
+        updateChecker_->check(/*force=*/false);
+    }
 }
 
 QWidget* MainWindow::buildSidebar() {

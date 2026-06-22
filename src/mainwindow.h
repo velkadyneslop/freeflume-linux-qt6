@@ -23,6 +23,9 @@ class DownloadsPage;
 class DownloadManager;
 class Database;
 class ThumbnailLoader;
+class UpdateChecker;
+class QFrame;
+class QLabel;
 
 // The top-level desktop shell: a left navigation sidebar, a top search bar,
 // and a stacked content area. Styling is intentionally left to the active Qt
@@ -65,6 +68,11 @@ private:
     QWidget* buildPlaceholderPage(const QString& title, const QString& subtitle,
                                   const QString& iconName);
 
+    // A slim, dismissible bar shown when a newer FreeFlume is published. Only
+    // appears if the user has opted in (setting updates/notify, default off).
+    QWidget* buildUpdateBanner();
+    void maybeCheckForUpdates();
+
     // The player floats over the content area (never reparented), so it can
     // shrink to a mini-player while you browse other pages.
     enum PlayerState { PlayerHidden, PlayerMini, PlayerFull };
@@ -85,6 +93,10 @@ private:
     PlaylistsPage* playlistsPage_ = nullptr;
     QWidget* topBar_ = nullptr;
     QWidget* content_ = nullptr;  // the right area the player floats over
+    UpdateChecker* updateChecker_ = nullptr;
+    QFrame* updateBanner_ = nullptr;
+    QLabel* updateBannerText_ = nullptr;
+    QString updateUrl_;  // release page opened by the banner's View button
     QListWidget* nav_ = nullptr;
     QStackedWidget* pages_ = nullptr;
     QLineEdit* search_ = nullptr;
