@@ -29,7 +29,16 @@ int main(int argc, char* argv[]) {
     QApplication::setApplicationName(QStringLiteral("FreeFlume"));
     QApplication::setApplicationDisplayName(QStringLiteral("FreeFlume"));
     QApplication::setOrganizationName(QStringLiteral("velkadyne"));
-    QApplication::setDesktopFileName(QStringLiteral("org.freeflume.Desktop"));
+    // The Wayland app_id (which the compositor uses to find the .desktop file it
+    // draws the taskbar/titlebar icon from) must match the INSTALLED .desktop
+    // basename. The Flatpak renames everything to its app-id, exported as
+    // $FLATPAK_ID; native + AppImage keep org.freeflume.Desktop. A mismatch
+    // leaves the window/taskbar icon blank.
+    QString desktopId = qEnvironmentVariable("FLATPAK_ID");
+    if (desktopId.isEmpty()) {
+        desktopId = QStringLiteral("org.freeflume.Desktop");
+    }
+    QApplication::setDesktopFileName(desktopId);
 
     // Move data/config over from the pre-1.0 "FreeFlume/FreeFlume" layout.
     apppaths::migrateLegacy();
@@ -47,10 +56,16 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // App icon (embedded), with the installed theme icon as a fallback.
-    QIcon icon = QIcon::fromTheme(QStringLiteral("freeflume"));
+    // App/window icon. Build it from the embedded PNGs first (always present, so
+    // the window/taskbar icon renders regardless of the active icon theme or
+    // whether the .desktop file is registered); fall back to a themed lookup only
+    // if the resources are somehow unavailable.
+    QIcon icon;
     for (int s : {16, 24, 32, 48, 64, 128, 256, 512}) {
         icon.addFile(QStringLiteral(":/icons/freeflume-%1.png").arg(s), QSize(s, s));
+    }
+    if (icon.isNull()) {
+        icon = QIcon::fromTheme(QStringLiteral("freeflume"));
     }
     QApplication::setWindowIcon(icon);
 
