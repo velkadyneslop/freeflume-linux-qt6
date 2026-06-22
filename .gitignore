@@ -28,5 +28,10 @@ compile_commands.json
 *.AppImage
 *.flatpak
 
+# Flatpak self-hosted repo: gh-pages worktree + the private signing keyring.
+# NEVER commit the keyring — it holds the repo's private signing key.
+/.flatpak-pages-worktree/
+.gnupg-flatpak/
+
 # Separate side project — never part of FreeFlume-linux
 /FreeFlumePico/
