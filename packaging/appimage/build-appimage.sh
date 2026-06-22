@@ -5,7 +5,7 @@ set -e
 export APPIMAGE_EXTRACT_AND_RUN=1
 export QMAKE=/usr/bin/qmake6
 export ARCH=x86_64
-export VERSION=1.0.0
+export VERSION="${VERSION:-1.0.4}"
 export NO_STRIP=1
 # Bundle the offscreen plugin too (headless testing; harmless otherwise).
 export EXTRA_PLATFORM_PLUGINS="libqoffscreen.so"
@@ -18,10 +18,10 @@ cmake -S /src -B "$BUILD" -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD"
 cmake --install "$BUILD" --prefix "$APPDIR/usr"
 
-# Note: yt-dlp is NOT bundled (its 35 MB binary would push the AppImage over
-# Codeberg's 100 MB release-asset limit, and a host yt-dlp stays up to date).
-# The app/mpv find it on the host PATH; the Flatpak is the fully self-contained
-# option.
+# Note: yt-dlp is NOT bundled. GitHub's 2 GB asset limit no longer forces this
+# (Codeberg's old 100 MB cap did), but a host yt-dlp stays current on its own —
+# a bundled copy would go stale and break extraction within weeks. The app/mpv
+# find it on the host PATH; the Flatpak is the fully self-contained option.
 
 # Bundle Breeze icons (the app uses Breeze icon names everywhere). -a keeps the
 # theme's symlinks so it stays small. hicolor is the base theme Breeze inherits.
@@ -50,7 +50,7 @@ linuxdeploy --appdir "$APPDIR" --plugin qt \
     --desktop-file "$APPDIR/usr/share/applications/org.freeflume.Desktop.desktop" \
     --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/freeflume.png"
 
-# Slim the bundle to fit Codeberg's 100 MB limit: ffmpeg's flite (speech synth,
+# Slim the bundle (smaller download + smaller self-update deltas): ffmpeg's flite (speech synth,
 # ~20 MB of voice data) and sphinx (speech recognition) libs are only used by
 # libavfilter filters we never invoke. Ubuntu builds with -z now, so libavfilter
 # resolves their symbols at load and we can't just delete them — instead replace
@@ -84,7 +84,41 @@ stub_replace "libflite*.so*" /tmp/flite_stub.c
 stub_replace "libsphinxbase.so*" /tmp/sphinx_stub.c
 stub_replace "libpocketsphinx.so*" /tmp/sphinx_stub.c
 
+# Bundle the self-updater LAST (after linuxdeploy, so it doesn't try to patch
+# the inner AppImage's RUNPATH). `FreeFlume.AppImage --update` runs it; it's an
+# AppImage itself, launched with extract-and-run by AppRun so it needs no FUSE.
+cp /opt/appimageupdatetool-x86_64.AppImage "$APPDIR/usr/bin/appimageupdatetool.AppImage"
+chmod +x "$APPDIR/usr/bin/appimageupdatetool.AppImage"
+
 mkdir -p /src/Linux-Release
+OUT_DIR="/src/Linux-Release"
+OUT_NAME="FreeFlume-${VERSION}-x86_64.AppImage"
+OUT="$OUT_DIR/$OUT_NAME"
+
+# -u embeds the update-information string and makes appimagetool emit the zsync
+# delta control file. The gh-releases-zsync transport points the updater at the
+# latest GitHub release; the glob is version-independent so it keeps matching
+# across releases. BOTH the .AppImage AND the .zsync must be uploaded to every
+# GitHub release for self-update to resolve.
+UPDATE_INFO='gh-releases-zsync|velkadyneslop|freeflume-linux-qt6|latest|FreeFlume-*-x86_64.AppImage.zsync'
+
+# Optional GPG signing (opt-in): export SIGN_KEY=<key-id-or-email> to sign the
+# AppImage so the updater/users can verify authenticity. Builds without it still
+# succeed, just unsigned.
+SIGN_ARGS=()
+[ -n "${SIGN_KEY:-}" ] && SIGN_ARGS=(--sign --sign-key "${SIGN_KEY}")
+
+# Run from the output dir: appimagetool's zsyncmake writes the .zsync to the
+# current working directory, so cwd must be where we want it to land (not the
+# container's /tmp, which vanishes with --rm).
+cd "$OUT_DIR"
 appimagetool --comp zstd --mksquashfs-opt -Xcompression-level --mksquashfs-opt 22 \
-    "$APPDIR" /src/Linux-Release/FreeFlume-1.0.0-x86_64.AppImage
-echo "DONE: $(ls -lh /src/Linux-Release/FreeFlume-1.0.0-x86_64.AppImage)"
+    -u "${UPDATE_INFO}" "${SIGN_ARGS[@]}" \
+    "$APPDIR" "$OUT_NAME"
+echo "DONE: $(ls -lh "$OUT")"
+if [ -f "${OUT}.zsync" ]; then
+    echo "zsync: $(ls -lh "${OUT}.zsync")  <-- upload alongside the .AppImage"
+else
+    echo "ERROR: ${OUT}.zsync was not produced — self-update will not work." >&2
+    exit 1
+fi

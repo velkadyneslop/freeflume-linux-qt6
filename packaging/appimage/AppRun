@@ -8,4 +8,18 @@ export PATH="${HERE}/usr/bin:${PATH}"
 # bundled so the app picks the theme/style itself (no KDE integration here).
 export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 export FREEFLUME_APPIMAGE=1
+
+# Self-update: `FreeFlume.AppImage --update` updates the file in place via the
+# embedded gh-releases-zsync info (only the changed chunks are downloaded).
+# $APPIMAGE is set by the runtime to the outer .AppImage path. The bundled
+# updater is itself an AppImage, so run it with extract-and-run (no host FUSE).
+if [ "${1:-}" = "--update" ]; then
+    if [ -n "${APPIMAGE:-}" ] && [ -x "${HERE}/usr/bin/appimageupdatetool.AppImage" ]; then
+        exec env APPIMAGE_EXTRACT_AND_RUN=1 \
+            "${HERE}/usr/bin/appimageupdatetool.AppImage" "${APPIMAGE}"
+    fi
+    echo "Self-update is only available when running the packaged AppImage." >&2
+    exit 1
+fi
+
 exec "${HERE}/usr/bin/freeflume" "$@"

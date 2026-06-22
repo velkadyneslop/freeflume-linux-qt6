@@ -15,12 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         breeze-icon-theme hicolor-icon-theme \
     && rm -rf /var/lib/apt/lists/*
 
-# linuxdeploy + Qt plugin + appimagetool (run with APPIMAGE_EXTRACT_AND_RUN=1,
-# so no FUSE needed inside the container).
+# linuxdeploy + Qt plugin + appimagetool + appimageupdatetool (run with
+# APPIMAGE_EXTRACT_AND_RUN=1, so no FUSE needed inside the container).
+# appimageupdatetool is also copied into the AppDir to power `--update`.
 RUN cd /opt && \
     wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage && \
     wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage && \
     wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage && \
+    wget -q https://github.com/AppImage/AppImageUpdate/releases/download/continuous/appimageupdatetool-x86_64.AppImage && \
     chmod +x *.AppImage && \
     ln -s /opt/appimagetool-x86_64.AppImage /usr/local/bin/appimagetool && \
     ln -s /opt/linuxdeploy-plugin-qt-x86_64.AppImage /usr/local/bin/linuxdeploy-plugin-qt && \
