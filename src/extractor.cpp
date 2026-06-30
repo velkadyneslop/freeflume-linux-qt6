@@ -800,25 +800,33 @@ void Extractor::handleFinished(int exitCode, QProcess::ExitStatus status) {
             continue;
         }
         const QJsonObject obj = doc.object();
-        const int pc = obj.value(QStringLiteral("playlist_count")).toInt(0);
-        if (pc > total) {
-            total = pc;
+        // A channel's page 1 also pulls its /streams tab (to surface live/upcoming
+        // streams). Those entries belong to the streams tab, not the videos list —
+        // and crucially their playlist_count is the *stream* count, not the
+        // channel's. Letting that count become the "total" wrongly collapses the
+        // page count to 1 and hides the pager. So ignore playlist_count from any
+        // /streams entry; the /videos tab reports no count, leaving channels on the
+        // rawCount heuristic in the UI (the intended behaviour for open-ended tabs).
+        const QString src = obj.value(QStringLiteral("playlist_webpage_url")).toString();
+        const QString orig = obj.value(QStringLiteral("original_url")).toString();
+        const bool fromStreams = src.endsWith(QLatin1String("/streams")) ||
+                                 orig.endsWith(QLatin1String("/streams"));
+        if (!fromStreams) {
+            const int pc = obj.value(QStringLiteral("playlist_count")).toInt(0);
+            if (pc > total) {
+                total = pc;
+            }
         }
         SearchResult r = parseEntry(obj);
         if (r.title.isEmpty() || r.url.isEmpty()) {
             continue;
         }
-        if (pinLiveFirst_ && r.durationSeconds > 0) {
-            // Channel view: drop PAST streams. A finished stream has a duration and
-            // comes from the /streams tab; uploads also have a duration but come
-            // from /videos (kept). Live/upcoming streams have no duration and are
-            // kept + floated to the top below.
-            const QString src = obj.value(QStringLiteral("playlist_webpage_url")).toString();
-            const QString orig = obj.value(QStringLiteral("original_url")).toString();
-            if (src.endsWith(QLatin1String("/streams")) ||
-                orig.endsWith(QLatin1String("/streams"))) {
-                continue;
-            }
+        if (pinLiveFirst_ && r.durationSeconds > 0 && fromStreams) {
+            // Channel view: drop finished PAST streams. A past stream has a duration
+            // and comes from /streams; uploads also have a duration but come from
+            // /videos (kept). Live/upcoming streams have no duration and are kept +
+            // floated to the top below.
+            continue;
         }
         results.push_back(std::move(r));
     }
