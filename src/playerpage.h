@@ -85,6 +85,8 @@ private:
     void onPlaybackEnded();      // mpv reached natural end-of-file
     void saveProgress(bool completed, bool notify);  // persist resume position
     void showResumeBanner(qint64 positionSec);       // "ask" mode prompt
+    void setAudioLanguage(const QString& code);      // switch dub ("" = original)
+    void updateAudioButton();    // sync the AUD button's tag/tooltip to the active track
     void updateQueueUi();        // refresh prev/next/queue-button state + highlight
     void requestSponsorSegments();             // fetch for the current video
     void updateSponsorMarks();                 // recolour the seek bar
@@ -147,6 +149,7 @@ private:
     QToolButton* infoBtn_ = nullptr;
     QToolButton* queueBtn_ = nullptr;
     QToolButton* ccBtn_ = nullptr;
+    QToolButton* audioBtn_ = nullptr;  // audio-language (dub) menu; hidden if <2 tracks
     QToolButton* speedBtn_ = nullptr;
     QToolButton* loopBtn_ = nullptr;
     QToolButton* screenshotBtn_ = nullptr;
@@ -173,6 +176,8 @@ private:
 
     QString channelUrl_;  // channel of the current video (for the clickable name)
     QString currentUrl_;  // URL of the current video (for share/context menu)
+    QString audioLang_;   // selected audio-language code ("" = original/default)
+    QList<AudioTrackInfo> audioTracks_;  // dubs available for the current video
     double position_ = 0.0;  // last reported playback position, seconds
     QList<SearchResult> queue_;  // current play queue (1 item for single plays)
     int queueIndex_ = -1;        // index of the playing item within queue_

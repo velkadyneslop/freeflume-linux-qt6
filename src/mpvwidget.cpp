@@ -453,6 +453,10 @@ void MpvWidget::setSubtitleTrack(int id) {
     setOption(QStringLiteral("sid"), id > 0 ? QString::number(id) : QStringLiteral("no"));
 }
 
+void MpvWidget::setAudioMultiClient(bool on) {
+    audioMultiClient_ = on;
+}
+
 void MpvWidget::applySubtitleSettings() {
     if (!mpv_) {
         return;
@@ -487,7 +491,11 @@ void MpvWidget::applySubtitleSettings() {
         // the default). Auto-generated captions stay opt-in above.
         langPattern = "all";
     }
-    const QByteArray clientVal = "youtube:player_client=default,android";
+    // web_embedded is only added when a dub is selected: it surfaces the
+    // alternate-language audio, at the cost of an extra extraction round-trip.
+    const QByteArray clientVal = audioMultiClient_
+        ? "youtube:player_client=default,web_embedded,android"
+        : "youtube:player_client=default,android";
     QByteArray raw = "write-subs=";
     if (wantAuto) {
         raw += ",write-auto-subs=";

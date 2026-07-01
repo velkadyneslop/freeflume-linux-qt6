@@ -68,6 +68,28 @@ QString languageName(const QString& code) {
     return kNames.value(code, code.toUpper());
 }
 
+// A short uppercase tag for the audio-language button, e.g. "en"/"en-US" -> "ENG".
+// Falls back to the uppercased primary subtag for languages not listed.
+QString langTag(const QString& code) {
+    const QString base = code.section(QLatin1Char('-'), 0, 0).toLower();
+    static const QHash<QString, QString> kTags = {
+        {QStringLiteral("en"), QStringLiteral("ENG")}, {QStringLiteral("es"), QStringLiteral("SPA")},
+        {QStringLiteral("fr"), QStringLiteral("FRA")}, {QStringLiteral("de"), QStringLiteral("GER")},
+        {QStringLiteral("it"), QStringLiteral("ITA")}, {QStringLiteral("pt"), QStringLiteral("POR")},
+        {QStringLiteral("ru"), QStringLiteral("RUS")}, {QStringLiteral("ja"), QStringLiteral("JPN")},
+        {QStringLiteral("ko"), QStringLiteral("KOR")}, {QStringLiteral("zh"), QStringLiteral("CHI")},
+        {QStringLiteral("ar"), QStringLiteral("ARA")}, {QStringLiteral("hi"), QStringLiteral("HIN")},
+        {QStringLiteral("nl"), QStringLiteral("DUT")}, {QStringLiteral("pl"), QStringLiteral("POL")},
+        {QStringLiteral("id"), QStringLiteral("IND")}, {QStringLiteral("uk"), QStringLiteral("UKR")},
+        {QStringLiteral("tr"), QStringLiteral("TUR")}, {QStringLiteral("vi"), QStringLiteral("VIE")},
+        {QStringLiteral("th"), QStringLiteral("THA")}, {QStringLiteral("ml"), QStringLiteral("MAL")},
+        {QStringLiteral("bn"), QStringLiteral("BEN")}, {QStringLiteral("ta"), QStringLiteral("TAM")},
+        {QStringLiteral("te"), QStringLiteral("TEL")}, {QStringLiteral("pa"), QStringLiteral("PAN")},
+        {QStringLiteral("iw"), QStringLiteral("HEB")}, {QStringLiteral("he"), QStringLiteral("HEB")},
+    };
+    return kTags.value(base, base.toUpper());
+}
+
 QToolButton* iconButton(const QString& iconName, const QString& tip) {
     auto* b = new QToolButton;
     b->setIcon(QIcon::fromTheme(iconName));
@@ -92,6 +114,20 @@ constexpr Quality kQualities[] = {
     {"480p", "bestvideo[height<=480]+bestaudio/best[height<=480]/best"},
     {"360p", "bestvideo[height<=360]+bestaudio/best[height<=360]/best"},
 };
+
+// Constrain a quality format string to a specific audio language (a YouTube
+// dub). Every kQualities entry selects "bestaudio"; adding the [language=…]
+// filter picks that language's track. The "/best…" fallbacks stay unfiltered,
+// so a video without the requested dub still plays. Empty lang = no change.
+QString withAudioLanguage(const QString& format, const QString& lang) {
+    if (lang.isEmpty()) {
+        return format;
+    }
+    QString out = format;
+    out.replace(QStringLiteral("bestaudio"),
+                QStringLiteral("bestaudio[language=%1]").arg(lang));
+    return out;
+}
 
 // Which window edge(s), if any, a point near the frameless PiP border maps to —
 // so a press there starts a resize; anywhere else starts a move.
@@ -341,6 +377,36 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
         }
     });
 
+    // Audio-language (dub) selector. Hidden unless a video offers >1 audio
+    // track; populated from Extractor::audioTracksReady.
+    audioBtn_ = new QToolButton(transportBar_);
+    audioBtn_->setText(QStringLiteral("AUD"));
+    audioBtn_->setToolTip(tr("Audio language"));
+    audioBtn_->setAutoRaise(true);
+    audioBtn_->setFocusPolicy(Qt::NoFocus);
+    audioBtn_->setPopupMode(QToolButton::InstantPopup);
+    audioBtn_->setVisible(false);
+    auto* audioMenu = new QMenu(audioBtn_);
+    audioBtn_->setMenu(audioMenu);
+    connect(audioMenu, &QMenu::aboutToShow, this, [this, audioMenu] {
+        audioMenu->clear();
+        for (const AudioTrackInfo& t : audioTracks_) {
+            QString label = t.name.isEmpty() ? languageName(t.code) : t.name;
+            if (t.isDefault) {
+                label += tr(" (original)");
+            } else if (t.autoDub) {
+                label += tr(" (auto-dubbed)");
+            }
+            QAction* a = audioMenu->addAction(label);
+            a->setCheckable(true);
+            // The default track is selected when no explicit language is set.
+            const bool chosen = t.isDefault ? audioLang_.isEmpty() : (audioLang_ == t.code);
+            a->setChecked(chosen);
+            const QString code = t.isDefault ? QString() : t.code;
+            connect(a, &QAction::triggered, this, [this, code] { setAudioLanguage(code); });
+        }
+    });
+
     // Playback speed selector.
     speedBtn_ = new QToolButton(transportBar_);
     speedBtn_->setText(QStringLiteral("1×"));
@@ -535,6 +601,7 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
     row->addWidget(pipBtn_);
     row->addWidget(screenshotBtn_);
     row->addWidget(ccBtn_);
+    row->addWidget(audioBtn_);
     row->addWidget(speedBtn_);
     row->addWidget(quality_);
     row->addWidget(fsBtn_);
@@ -575,7 +642,7 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
     // Quality: remember the choice and reload at the current position.
     connect(quality_, &QComboBox::currentIndexChanged, this, [this] {
         QSettings(apppaths::configFile(), QSettings::IniFormat).setValue(QStringLiteral("playback/quality"), quality_->currentText());
-        video_->setYtdlFormat(quality_->currentData().toString());
+        video_->setYtdlFormat(withAudioLanguage(quality_->currentData().toString(), audioLang_));
         video_->reload();
     });
 
@@ -739,6 +806,17 @@ PlayerPage::PlayerPage(QWidget* parent) : QWidget(parent) {
     });
     connect(extractor_, &Extractor::detailsFailed, this,
             [this](const QString&) { infoText_->setPlainText(tr("Could not load description.")); });
+
+    // Audio-language tracks for the current video: show the dub selector only
+    // when there's more than one language to choose from.
+    connect(extractor_, &Extractor::audioTracksReady, this,
+            [this](const QList<AudioTrackInfo>& tracks, const QString& url) {
+                if (url != currentUrl_) {
+                    return;  // a later video already superseded this probe
+                }
+                audioTracks_ = tracks;
+                updateAudioButton();
+            });
 }
 
 void PlayerPage::play(const SearchResult& item) {
@@ -840,6 +918,12 @@ void PlayerPage::playIndex(int index) {
     titleLabel_->setText(item.title.isEmpty() ? tr("Loading…") : item.title);
     infoText_->setPlainText(tr("Loading description…"));
     video_->setVolume(volume_->value());
+    // Reset to the original audio for each new video; the dub selector (if any)
+    // repopulates once the probe below returns.
+    audioLang_.clear();
+    audioTracks_.clear();
+    audioBtn_->setVisible(false);
+    video_->setAudioMultiClient(false);
     video_->setYtdlFormat(quality_->currentData().toString());
 
     // Resume behaviour from a previously-saved position.
@@ -862,12 +946,51 @@ void PlayerPage::playIndex(int index) {
     }
     video_->play(item.url, startSec);
     extractor_->fetchDetails(item.url);
+    // Multi-audio ("dubs") are a YouTube feature; only probe there.
+    if (!share::videoId(item.url).isEmpty()) {
+        extractor_->fetchAudioTracks(item.url);
+    }
     requestSponsorSegments();
     revealControls();
     setFocus();
 
     updateQueueUi();
     emit nowPlaying(item);
+}
+
+void PlayerPage::setAudioLanguage(const QString& code) {
+    if (code == audioLang_) {
+        return;
+    }
+    audioLang_ = code;
+    updateAudioButton();
+    // web_embedded is only needed to surface a non-default dub; drop it for the
+    // original so ordinary playback stays on the fast default client.
+    video_->setAudioMultiClient(!audioLang_.isEmpty());
+    video_->setYtdlFormat(withAudioLanguage(quality_->currentData().toString(), audioLang_));
+    video_->reload();  // seamless: resumes at the current position
+}
+
+void PlayerPage::updateAudioButton() {
+    if (audioTracks_.size() < 2) {
+        audioBtn_->setVisible(false);
+        return;
+    }
+    // The active track is the picked language, or the original when none is set.
+    const AudioTrackInfo* active = nullptr;
+    for (const AudioTrackInfo& t : audioTracks_) {
+        if (audioLang_.isEmpty() ? t.isDefault : t.code == audioLang_) {
+            active = &t;
+            break;
+        }
+    }
+    if (!active) {
+        active = &audioTracks_.first();
+    }
+    audioBtn_->setText(langTag(active->code));
+    const QString name = active->name.isEmpty() ? languageName(active->code) : active->name;
+    audioBtn_->setToolTip(tr("Audio language: %1").arg(name));
+    audioBtn_->setVisible(true);
 }
 
 void PlayerPage::requestSponsorSegments() {
@@ -1526,7 +1649,8 @@ void PlayerPage::enterPip() {
     });
 
     pipVideo_->setVolume(volume_->value());
-    pipVideo_->setYtdlFormat(quality_->currentData().toString());
+    pipVideo_->setAudioMultiClient(!audioLang_.isEmpty());  // keep the chosen dub
+    pipVideo_->setYtdlFormat(withAudioLanguage(quality_->currentData().toString(), audioLang_));
     pipWindow_->show();
     pipVideo_->play(url, startAt);  // re-extracts; ~1–2s to start
 

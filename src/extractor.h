@@ -70,6 +70,14 @@ struct Chapter {
     QString title;
 };
 
+// One selectable audio-language track (a YouTube "dub" or the original).
+struct AudioTrackInfo {
+    QString code;          // yt-dlp language code, e.g. "en", "ja", "es-US"
+    QString name;          // clean language name, e.g. "French" (no region/quality)
+    bool isDefault = false;  // the video's original/default audio
+    bool autoDub = false;    // YouTube machine-generated dub (xtags acont=dubbed-auto)
+};
+
 // Full metadata for a single video (from a non-flat extraction).
 struct VideoDetails {
     QString url;
@@ -114,6 +122,12 @@ public:
     // Fetches full metadata for one video URL. Independent of search().
     void fetchDetails(const QString& url);
 
+    // Lists the video's audio-language tracks (YouTube multi-audio "dubs").
+    // Uses the web_embedded player client, which surfaces the alternate-language
+    // audio the default client hides. Emits audioTracksReady (possibly with a
+    // single entry, or empty on failure). Independent of fetchDetails().
+    void fetchAudioTracks(const QString& url);
+
     // Fetches the ENTIRE flat list of a playlist/channel URL (no pagination),
     // for building a play queue. Runs on its own process so it doesn't disturb
     // an in-progress search/page; emits playlistItemsReady on success.
@@ -134,6 +148,10 @@ signals:
     void detailsFinished(const VideoDetails& details);
     void detailsFailed(const QString& message);
 
+    // The audio-language tracks for the requested url, echoing back the url so a
+    // stale reply (video changed meanwhile) can be discarded.
+    void audioTracksReady(const QList<AudioTrackInfo>& tracks, const QString& url);
+
     // The full ordered items of the playlist/channel requested via
     // fetchPlaylistItems(), echoing back the source url.
     void playlistItemsReady(const QList<SearchResult>& items, const QString& url);
@@ -144,6 +162,7 @@ private:
     void handleFinished(int exitCode, QProcess::ExitStatus status);
     void handleError(QProcess::ProcessError error);
     void handleDetailsFinished(int exitCode, QProcess::ExitStatus status);
+    void handleAudioTracksFinished(int exitCode, QProcess::ExitStatus status);
     void handlePlaylistFinished(int exitCode, QProcess::ExitStatus status);
 
     // Loads one page of a playlist directly via YouTube's InnerTube browse API.
@@ -158,10 +177,12 @@ private:
 
     QProcess* proc_ = nullptr;
     QProcess* detailsProc_ = nullptr;
+    QProcess* audioProc_ = nullptr;
     QProcess* playlistProc_ = nullptr;
     bool pinLiveFirst_ = false;  // channel page 1: float live/upcoming streams to the top
     QString query_;
     QString detailsUrl_;
+    QString audioUrl_;
     QString playlistUrl_;
 
     QNetworkAccessManager* net_ = nullptr;
@@ -171,5 +192,6 @@ private:
 };
 
 Q_DECLARE_METATYPE(VideoDetails)
+Q_DECLARE_METATYPE(AudioTrackInfo)
 
 Q_DECLARE_METATYPE(SearchResult)

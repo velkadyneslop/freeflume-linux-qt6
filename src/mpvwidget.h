@@ -63,6 +63,12 @@ public:
     QList<MpvTrack> subtitleTracks() const;
     void setSubtitleTrack(int id);
 
+    // When on, add YouTube's web_embedded player client to extraction so
+    // alternate-language audio ("dubs") become selectable via the ytdl-format
+    // language filter. Takes effect on the next play()/reload(). Off by default
+    // so ordinary playback keeps the original audio and stays fast.
+    void setAudioMultiClient(bool on);
+
 signals:
     void positionChanged(double seconds);
     void durationChanged(double seconds);
@@ -95,5 +101,6 @@ private:
     mpv_render_context* renderCtx_ = nullptr;
     QString currentUrl_;
     double pendingSeek_ = 0.0;  // seek-to position applied on the next load
+    bool audioMultiClient_ = false;  // add web_embedded client for dub selection
     IdleInhibitor inhibitor_;   // blocks screensaver/suspend while playing
 };
