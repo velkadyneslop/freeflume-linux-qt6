@@ -1113,7 +1113,12 @@ void PlayerPage::onPlaybackEnded() {
     const bool autoplay =
         QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/autoplayNext"), true).toBool();
     if (autoplay) {
-        playNext();  // no-op when this was the last item
+        playNext();  // starts the next item (and re-sets currentUrl_) if there is one
+    }
+    if (currentUrl_.isEmpty()) {
+        // Nothing advanced — playback is truly over. Let the shell close the
+        // mini-player if the user navigates back.
+        emit playbackFinished();
     }
 }
 

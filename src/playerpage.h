@@ -64,6 +64,7 @@ signals:
     void fullscreenToggleRequested();
     void channelRequested(const QString& channelUrl);  // clicked the channel name
     void nowPlaying(const SearchResult& item);  // a video started (for history)
+    void playbackFinished();  // the last video ended and nothing is playing next
     void expandRequested();  // mini-player → full
     void closeRequested();   // mini-player × → stop & hide
     void toggleSidebarRequested();  // hamburger → show/hide the main sidebar

@@ -482,13 +482,20 @@ void Extractor::search(const QString& query, int page, int pageSize, bool richRe
     }
 }
 
-void Extractor::fetchChannel(const QString& channelUrl, int page, int pageSize, bool streamsTab) {
+void Extractor::fetchChannel(const QString& channelUrl, int page, int pageSize, ChannelTab tab) {
     const int start = (page - 1) * pageSize + 1;
     const int end = page * pageSize;
-    if (streamsTab) {
+    if (tab == ChannelTab::Streams) {
         // Streams view: the whole /streams tab (live + upcoming + past), newest-first
         // as YouTube returns it. No pin/drop — past streams are the point here.
         runFlat({channelBaseUrl(channelUrl) + QStringLiteral("/streams")}, channelUrl,
+                start, end);
+        return;
+    }
+    if (tab == ChannelTab::Shorts) {
+        // Shorts view: the channel's /shorts tab as-is (entries carry /shorts/ URLs
+        // so they're tagged ResultKind::Short).
+        runFlat({channelBaseUrl(channelUrl) + QStringLiteral("/shorts")}, channelUrl,
                 start, end);
         return;
     }

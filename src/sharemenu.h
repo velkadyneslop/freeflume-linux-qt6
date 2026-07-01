@@ -14,11 +14,19 @@ namespace share {
 
 inline void copy(const QString& text) { QApplication::clipboard()->setText(text); }
 
-// Extracts the YT video id from a watch or youtu.be URL ("" if not a video).
+// Extracts the YT video id from a watch, youtu.be, Shorts, live or embed URL
+// ("" if not a video). Shorts/live/embed share the /<kind>/<id> path shape.
 inline QString videoId(const QString& url) {
     const QUrl u(url);
     if (u.host().contains(QLatin1String("youtu.be"))) {
         return u.path().mid(1);
+    }
+    const QString path = u.path();
+    for (const QLatin1String prefix : {QLatin1String("/shorts/"), QLatin1String("/live/"),
+                                       QLatin1String("/embed/")}) {
+        if (path.startsWith(prefix)) {
+            return path.mid(prefix.size()).section(QLatin1Char('/'), 0, 0);
+        }
     }
     return QUrlQuery(u).queryItemValue(QStringLiteral("v"));
 }

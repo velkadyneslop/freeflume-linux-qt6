@@ -55,6 +55,8 @@ public:
     // ---- Cached video metadata (lazy background enrichment) ----
     QString cachedUploadDate(const QString& url) const;  // "" if unknown
     void cacheUploadDate(const QString& url, const QString& date);  // YYYYMMDD
+    int cachedIsShort(const QString& url) const;   // 1 short, 0 not, -1 unknown
+    void cacheIsShort(const QString& url, bool isShort);
 
     // ---- Search history ----
     void addSearch(const QString& query);

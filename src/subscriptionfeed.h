@@ -27,10 +27,13 @@ private:
     void resolveChannelId(const Subscription& sub);
     void fetchFeed(const Subscription& sub, const QString& channelId);
     void finishOne();
+    void classifyShorts();  // HEAD-check any uncached items, then emitFiltered()
+    void emitFiltered();    // emit the feed with Shorts removed
 
     Database* db_;
     QNetworkAccessManager* net_;
     QList<SearchResult> items_;
     int pending_ = 0;
+    int classifyPending_ = 0;  // outstanding Shorts HEAD checks
     quint64 generation_ = 0;  // drops replies from a superseded refresh
 };

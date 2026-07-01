@@ -17,6 +17,9 @@ QT_END_NAMESPACE
 // What a search result points to.
 enum class ResultKind { Video, Short, Channel, Playlist };
 
+// Which tab of a channel to load (YouTube's Videos / Streams / Shorts).
+enum class ChannelTab { Videos, Streams, Shorts };
+
 // YT search filters (encoded into the sp= URL parameter). 0 = "any".
 struct SearchFilters {
     int uploadDate = 0;  // 1 hour, 2 today, 3 week, 4 month, 5 year
@@ -116,7 +119,7 @@ public:
     // streamsTab=true, loads the channel's /streams tab (all live + past streams)
     // instead of the clean uploads view.
     void fetchChannel(const QString& channelUrl, int page = 1, int pageSize = 50,
-                      bool streamsTab = false);
+                      ChannelTab tab = ChannelTab::Videos);
 
     // Searches within a single channel (YT's per-channel search). Emits the
     // same signals as search(). channelUrl may include a tab; it is stripped.

@@ -180,11 +180,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         updateSidebarVisibility();
     });
     connect(playerPage_, &PlayerPage::nowPlaying, this, [this](const SearchResult& item) {
+        playbackEnded_ = false;  // a fresh video is playing again
         statusBar()->showMessage(QStringLiteral("Playing: %1").arg(item.title), 5000);
         if (QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("history/rememberWatch"), true).toBool()) {
             db_->addHistory(item);
         }
     });
+    connect(playerPage_, &PlayerPage::playbackFinished, this,
+            [this] { playbackEnded_ = true; });
     connect(playerPage_, &PlayerPage::channelRequested, this, [this](const QString& urlRef) {
         const QString url = urlRef;
         setPlayerFullScreen(false);
@@ -599,7 +602,10 @@ void MainWindow::setPlayerFullScreen(bool on) {
     statusBar()->setVisible(!on);
     // topBar_ visibility is governed by the page rule (Search page only).
     if (on) {
+        wasMaximized_ = isMaximized();  // so we can restore it on exit
         showFullScreen();
+    } else if (wasMaximized_) {
+        showMaximized();  // a maximized window stays maximized after fullscreen
     } else {
         showNormal();
     }
@@ -670,7 +676,12 @@ void MainWindow::updateSidebarVisibility() {
 }
 
 void MainWindow::collapsePlayer() {
-    if (QSettings(apppaths::configFile(), QSettings::IniFormat).value(QStringLiteral("playback/miniPlayer"), true).toBool()) {
+    // A finished video has nothing to keep playing — close it instead of leaving
+    // a dead mini-player behind when the user navigates back.
+    const bool mini =
+        QSettings(apppaths::configFile(), QSettings::IniFormat)
+            .value(QStringLiteral("playback/miniPlayer"), true).toBool();
+    if (mini && !playbackEnded_) {
         setPlayerState(PlayerMini);
     } else {
         playerPage_->stop();

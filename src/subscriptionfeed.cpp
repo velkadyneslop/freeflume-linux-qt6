@@ -143,5 +143,56 @@ void SubscriptionFeed::finishOne() {
               [](const SearchResult& a, const SearchResult& b) {
                   return a.published > b.published;  // newest first
               });
-    emit ready(items_);
+    classifyShorts();
+}
+
+void SubscriptionFeed::classifyShorts() {
+    // The RSS feed mixes Shorts into the uploads with no marker. YouTube serves
+    // /shorts/<id> with 200 for a real Short and redirects (303) to /watch for a
+    // normal video — so a cheap HEAD classifies it. Results are cached in the DB
+    // (a video's Shorts-ness never changes), so only brand-new items are checked.
+    const quint64 gen = generation_;
+    classifyPending_ = 0;
+    for (const SearchResult& r : items_) {
+        if (db_->cachedIsShort(r.url) != -1) {
+            continue;  // already known
+        }
+        ++classifyPending_;
+        QNetworkRequest req = request(
+            QUrl(QStringLiteral("https://www.youtube.com/shorts/%1").arg(r.id)));
+        req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
+                         QNetworkRequest::ManualRedirectPolicy);  // don't follow → keep the code
+        req.setTransferTimeout(15000);
+        const QString url = r.url;
+        QNetworkReply* reply = net_->head(req);
+        connect(reply, &QNetworkReply::finished, this, [this, reply, url, gen] {
+            reply->deleteLater();
+            if (gen != generation_) {
+                return;  // a newer refresh superseded this
+            }
+            const int code =
+                reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+            if (code == 200) {
+                db_->cacheIsShort(url, true);
+            } else if (code >= 300 && code < 400) {
+                db_->cacheIsShort(url, false);
+            }  // else transient error: leave unknown so it's retried next refresh
+            if (--classifyPending_ == 0) {
+                emitFiltered();
+            }
+        });
+    }
+    if (classifyPending_ == 0) {
+        emitFiltered();
+    }
+}
+
+void SubscriptionFeed::emitFiltered() {
+    QList<SearchResult> out;
+    for (const SearchResult& r : items_) {
+        if (db_->cachedIsShort(r.url) != 1) {  // drop confirmed Shorts; keep unknowns
+            out.push_back(r);
+        }
+    }
+    emit ready(out);
 }

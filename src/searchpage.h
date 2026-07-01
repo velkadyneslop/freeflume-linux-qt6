@@ -55,7 +55,7 @@ private:
         QString query;
         QString channelUrl;
         QString channelQuery;  // in-channel search text (empty = browse all)
-        bool channelStreams = false;  // channel view: Streams tab vs Videos tab
+        ChannelTab channelTab = ChannelTab::Videos;  // channel view: Videos/Streams/Shorts
         QString label;
         SearchFilters filters;
         int page = 1;
@@ -72,7 +72,7 @@ private:
     void goToState(const NavState& state, bool pushCurrent);
     void goBack();
     void searchCurrentChannel(const QString& query);
-    void setChannelTab(bool streams);  // switch a channel between Videos and Streams
+    void setChannelTab(ChannelTab tab);  // switch a channel's Videos/Streams/Shorts tab
     NavState captureCurrent() const;
     bool hasCurrentSource() const;
     bool isCurrentChannel() const;
@@ -108,6 +108,7 @@ private:
     QLabel* contextLabel_ = nullptr;
     QToolButton* videosTabBtn_ = nullptr;   // channel: Videos tab
     QToolButton* streamsTabBtn_ = nullptr;  // channel: Streams tab (past + live)
+    QToolButton* shortsTabBtn_ = nullptr;   // channel: Shorts tab (opt-in setting)
     QLineEdit* channelSearch_ = nullptr;
     QWidget* filterBar_ = nullptr;
     QComboBox* dateFilter_ = nullptr;
@@ -123,7 +124,7 @@ private:
     QString currentQuery_;
     QString currentChannelUrl_;
     QString currentChannelQuery_;
-    bool currentChannelStreams_ = false;
+    ChannelTab currentChannelTab_ = ChannelTab::Videos;
     QString currentLabel_;
     QString pendingPlaylistUrl_;    // playlist whose full list we're fetching
     QString pendingPlaylistTitle_;  // its label, captured at request time

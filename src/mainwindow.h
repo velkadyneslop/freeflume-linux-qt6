@@ -115,5 +115,7 @@ private:
     int lastNavIndex_ = 0;
     PlayerState playerState_ = PlayerHidden;
     bool playerFullScreen_ = false;
+    bool wasMaximized_ = false;  // window was maximized before entering fullscreen
+    bool playbackEnded_ = false;  // current video finished (no next) → back closes mini
     bool sidebarOpen_ = false;  // user toggled the sidebar on during full playback
 };

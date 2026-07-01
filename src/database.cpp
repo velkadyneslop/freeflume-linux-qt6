@@ -72,6 +72,7 @@ void Database::createSchema() {
     // Cached upload dates (YYYYMMDD) from lazy background enrichment of rows.
     q.exec(QStringLiteral("CREATE TABLE IF NOT EXISTS meta_cache ("
                           " url TEXT PRIMARY KEY, upload_date TEXT)"));
+    q.exec(QStringLiteral("ALTER TABLE meta_cache ADD COLUMN is_short INTEGER"));
 }
 
 QString Database::cachedUploadDate(const QString& url) const {
@@ -86,10 +87,34 @@ QString Database::cachedUploadDate(const QString& url) const {
 
 void Database::cacheUploadDate(const QString& url, const QString& date) {
     QSqlQuery q(db_);
+    // Upsert only the date so a cached is_short flag isn't clobbered.
     q.prepare(QStringLiteral(
-        "INSERT OR REPLACE INTO meta_cache (url, upload_date) VALUES (:u, :d)"));
+        "INSERT INTO meta_cache (url, upload_date) VALUES (:u, :d)"
+        " ON CONFLICT(url) DO UPDATE SET upload_date = :d2"));
     q.bindValue(QStringLiteral(":u"), url);
     q.bindValue(QStringLiteral(":d"), date);
+    q.bindValue(QStringLiteral(":d2"), date);
+    q.exec();
+}
+
+int Database::cachedIsShort(const QString& url) const {
+    QSqlQuery q(db_);
+    q.prepare(QStringLiteral("SELECT is_short FROM meta_cache WHERE url = :u"));
+    q.bindValue(QStringLiteral(":u"), url);
+    if (q.exec() && q.next() && !q.value(0).isNull()) {
+        return q.value(0).toInt() ? 1 : 0;
+    }
+    return -1;  // no row, or the flag was never set
+}
+
+void Database::cacheIsShort(const QString& url, bool isShort) {
+    QSqlQuery q(db_);
+    q.prepare(QStringLiteral(
+        "INSERT INTO meta_cache (url, is_short) VALUES (:u, :s)"
+        " ON CONFLICT(url) DO UPDATE SET is_short = :s2"));
+    q.bindValue(QStringLiteral(":u"), url);
+    q.bindValue(QStringLiteral(":s"), isShort ? 1 : 0);
+    q.bindValue(QStringLiteral(":s2"), isShort ? 1 : 0);
     q.exec();
 }
 

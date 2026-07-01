@@ -151,7 +151,7 @@ void applyChannelAvatar(QLabel* thumb) {
 bool kindEnabled(ResultKind kind, const QSettings& s) {
     switch (kind) {
         case ResultKind::Short:
-            return false;  // shorts are a poor fit for desktop — never shown
+            return true;  // only reached via a channel's Shorts tab, which is opt-in by click
         case ResultKind::Channel:
             return s.value(QStringLiteral("search/includeChannels"), true).toBool();
         case ResultKind::Playlist:
@@ -194,7 +194,7 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     // + a live stream pinned on top; Streams = the full streams tab (past + live).
     auto* tabGroup = new QButtonGroup(this);
     tabGroup->setExclusive(true);
-    for (QToolButton** btn : {&videosTabBtn_, &streamsTabBtn_}) {
+    for (QToolButton** btn : {&videosTabBtn_, &streamsTabBtn_, &shortsTabBtn_}) {
         *btn = new QToolButton(header);
         (*btn)->setCheckable(true);
         (*btn)->setAutoRaise(true);
@@ -205,8 +205,13 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     videosTabBtn_->setText(tr("Videos"));
     videosTabBtn_->setChecked(true);
     streamsTabBtn_->setText(tr("Streams"));
-    connect(videosTabBtn_, &QToolButton::clicked, this, [this] { setChannelTab(false); });
-    connect(streamsTabBtn_, &QToolButton::clicked, this, [this] { setChannelTab(true); });
+    shortsTabBtn_->setText(tr("Shorts"));
+    connect(videosTabBtn_, &QToolButton::clicked, this,
+            [this] { setChannelTab(ChannelTab::Videos); });
+    connect(streamsTabBtn_, &QToolButton::clicked, this,
+            [this] { setChannelTab(ChannelTab::Streams); });
+    connect(shortsTabBtn_, &QToolButton::clicked, this,
+            [this] { setChannelTab(ChannelTab::Shorts); });
 
     channelSearch_ = new QLineEdit(header);
     channelSearch_->setClearButtonEnabled(true);
@@ -217,6 +222,7 @@ SearchPage::SearchPage(Extractor* extractor, ThumbnailLoader* thumbs, Database* 
     headerRow->addWidget(contextLabel_, /*stretch=*/1);
     headerRow->addWidget(videosTabBtn_);
     headerRow->addWidget(streamsTabBtn_);
+    headerRow->addWidget(shortsTabBtn_);
     headerRow->addWidget(channelSearch_);
     leftCol->addWidget(header);
     connect(backButton_, &QPushButton::clicked, this, &SearchPage::goBack);
@@ -531,19 +537,19 @@ SearchPage::NavState SearchPage::captureCurrent() const {
     s.query = currentQuery_;
     s.channelUrl = currentChannelUrl_;
     s.channelQuery = currentChannelQuery_;
-    s.channelStreams = currentChannelStreams_;
+    s.channelTab = currentChannelTab_;
     s.label = currentLabel_;
     s.filters = currentFilters_;
     s.page = currentPage_;
     return s;
 }
 
-void SearchPage::setChannelTab(bool streams) {
-    if (!isCurrentChannel() || currentChannelStreams_ == streams) {
+void SearchPage::setChannelTab(ChannelTab tab) {
+    if (!isCurrentChannel() || currentChannelTab_ == tab) {
         return;
     }
     NavState s = captureCurrent();
-    s.channelStreams = streams;
+    s.channelTab = tab;
     s.channelQuery.clear();  // switching tab drops any in-channel search
     s.page = 1;
     goToState(s, /*pushCurrent=*/false);  // a tab switch isn't a back-stack step
@@ -651,7 +657,7 @@ void SearchPage::goToState(const NavState& s, bool pushCurrent) {
     currentQuery_ = s.query;
     currentChannelUrl_ = s.channelUrl;
     currentChannelQuery_ = s.channelQuery;
-    currentChannelStreams_ = s.channelStreams;
+    currentChannelTab_ = s.channelTab;
     currentLabel_ = s.label;
     currentFilters_ = s.filters;
     setFiltersUi(currentFilters_);
@@ -673,12 +679,20 @@ void SearchPage::goBack() {
 void SearchPage::updateContextUi() {
     backButton_->setVisible(!backStack_.isEmpty());
     channelSearch_->setVisible(isCurrentChannel());
-    // Videos/Streams tabs only while browsing a channel (not during an in-channel search).
+    // Videos/Streams/Shorts tabs only while browsing a channel (not during an
+    // in-channel search).
     const bool channelTabs = isCurrentChannel() && currentChannelQuery_.isEmpty();
     videosTabBtn_->setVisible(channelTabs);
     streamsTabBtn_->setVisible(channelTabs);
+    shortsTabBtn_->setVisible(channelTabs);
     if (channelTabs) {
-        (currentChannelStreams_ ? streamsTabBtn_ : videosTabBtn_)->setChecked(true);
+        QToolButton* active = videosTabBtn_;
+        if (currentChannelTab_ == ChannelTab::Streams) {
+            active = streamsTabBtn_;
+        } else if (currentChannelTab_ == ChannelTab::Shorts) {
+            active = shortsTabBtn_;
+        }
+        active->setChecked(true);
     }
     filterBar_->setVisible(!isChannelSource_);  // filters apply to general search
     if (channelSearch_->text() != currentChannelQuery_) {
@@ -707,7 +721,7 @@ void SearchPage::fetchPage() {
         }
         if (currentChannelQuery_.isEmpty()) {
             extractor_->fetchChannel(currentChannelUrl_, currentPage_, pageSize_,
-                                     currentChannelStreams_);
+                                     currentChannelTab_);
         } else {
             extractor_->searchInChannel(currentChannelUrl_, currentChannelQuery_, currentPage_,
                                         pageSize_);
