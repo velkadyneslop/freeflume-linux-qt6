@@ -5,7 +5,7 @@ set -e
 export APPIMAGE_EXTRACT_AND_RUN=1
 export QMAKE=/usr/bin/qmake6
 export ARCH=x86_64
-export VERSION="${VERSION:-1.0.4}"
+export VERSION="${VERSION:-1.0.5}"
 export NO_STRIP=1
 # Bundle the offscreen plugin too (headless testing; harmless otherwise).
 export EXTRA_PLATFORM_PLUGINS="libqoffscreen.so"
