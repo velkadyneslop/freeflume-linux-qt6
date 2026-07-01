@@ -78,6 +78,10 @@ struct AudioTrackInfo {
     bool autoDub = false;    // YouTube machine-generated dub (xtags acont=dubbed-auto)
 };
 
+// Parses the distinct audio-language tracks from a yt-dlp --dump-single-json blob
+// (expects the web_embedded client's output). Original(s) first, then alphabetical.
+QList<AudioTrackInfo> parseAudioTracks(const QByteArray& ytDlpJson);
+
 // Full metadata for a single video (from a non-flat extraction).
 struct VideoDetails {
     QString url;

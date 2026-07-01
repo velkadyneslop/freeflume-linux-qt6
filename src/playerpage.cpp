@@ -1202,7 +1202,8 @@ void PlayerPage::showVideoContextMenu(const QPoint& pos) {
     }
     if (queueIndex_ >= 0 && queueIndex_ < queue_.size()) {
         playlistmenu::addSubmenu(&menu, db_, queue_.at(queueIndex_), this);
-        downloadmenu::addSubmenu(&menu, downloads_, queue_.at(queueIndex_));
+        // Download matches the audio language currently selected in the player.
+        downloadmenu::addSubmenu(&menu, downloads_, queue_.at(queueIndex_), audioLang_);
     }
     menu.addSeparator();
     share::addActions(&menu, currentUrl_, position_);  // includes link-at-time

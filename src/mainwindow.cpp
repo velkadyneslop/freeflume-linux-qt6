@@ -31,6 +31,7 @@
 #include <QStackedWidget>
 #include <QStandardPaths>
 #include <QStatusBar>
+#include <QProgressBar>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -284,7 +285,6 @@ void MainWindow::maybeCheckForUpdates() {
 QWidget* MainWindow::buildSidebar() {
     nav_ = new QListWidget(this);
     nav_->setObjectName(QStringLiteral("Sidebar"));
-    nav_->setFixedWidth(210);
     nav_->setFrameShape(QFrame::NoFrame);
     nav_->setIconSize(QSize(20, 20));
     nav_->setUniformItemSizes(true);
@@ -296,9 +296,65 @@ QWidget* MainWindow::buildSidebar() {
         auto* row = new QListWidgetItem(icon, QString::fromUtf8(item.label), nav_);
         row->setSizeHint(QSize(0, 40));
     }
-
     connect(nav_, &QListWidget::currentRowChanged, this, &MainWindow::onNavChanged);
-    return nav_;
+
+    // Sidebar = the nav list, with an active-download indicator pinned below it.
+    sidebar_ = new QWidget(this);
+    sidebar_->setObjectName(QStringLiteral("Sidebar"));
+    sidebar_->setFixedWidth(210);
+    auto* col = new QVBoxLayout(sidebar_);
+    col->setContentsMargins(0, 0, 0, 0);
+    col->setSpacing(0);
+    col->addWidget(nav_, 1);
+
+    dlStatus_ = new QWidget(sidebar_);
+    dlStatus_->setCursor(Qt::PointingHandCursor);
+    dlStatus_->setToolTip(tr("Show downloads"));
+    dlStatus_->installEventFilter(this);  // click → open the Downloads page
+    auto* dcol = new QVBoxLayout(dlStatus_);
+    dcol->setContentsMargins(12, 6, 12, 10);
+    dcol->setSpacing(3);
+    dlStatusLabel_ = new QLabel(dlStatus_);
+    dlStatusLabel_->setEnabled(false);  // muted caption
+    dlStatusBar_ = new QProgressBar(dlStatus_);
+    dlStatusBar_->setRange(0, 100);
+    dlStatusBar_->setTextVisible(false);
+    dlStatusBar_->setFixedHeight(6);
+    dcol->addWidget(dlStatusLabel_);
+    dcol->addWidget(dlStatusBar_);
+    dlStatus_->setVisible(false);
+    col->addWidget(dlStatus_);
+
+    connect(downloads_, &DownloadManager::changed, this, &MainWindow::updateDownloadStatus);
+    updateDownloadStatus();
+    return sidebar_;
+}
+
+void MainWindow::updateDownloadStatus() {
+    if (!dlStatus_ || !downloads_) {
+        return;
+    }
+    const Download* active = nullptr;
+    int queued = 0;
+    for (const Download& d : downloads_->downloads()) {
+        if (d.status == Download::Running && !active) {
+            active = &d;
+        } else if (d.status == Download::Queued) {
+            ++queued;
+        }
+    }
+    if (!active) {
+        dlStatus_->setVisible(false);
+        return;
+    }
+    dlStatusBar_->setValue(active->percent);
+    QString txt = active->merging ? tr("Merging… %1%").arg(active->percent)
+                                  : tr("Downloading %1%").arg(active->percent);
+    if (queued > 0) {
+        txt += tr("  ·  %n queued", "", queued);
+    }
+    dlStatusLabel_->setText(txt);
+    dlStatus_->setVisible(true);
 }
 
 QWidget* MainWindow::buildTopBar() {
@@ -504,6 +560,10 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* event) {
     if (obj == content_ && event->type() == QEvent::Resize) {
         layoutPlayer();  // keep the floating player anchored on resize
     }
+    // Clicking the sidebar download indicator opens the Downloads page (row 4).
+    if (obj == dlStatus_ && event->type() == QEvent::MouseButtonRelease) {
+        nav_->setCurrentRow(4);
+    }
     // Show recent searches when the (empty) search box gains focus or is clicked.
     if (obj == search_ &&
         (event->type() == QEvent::FocusIn || event->type() == QEvent::MouseButtonPress) &&
@@ -605,7 +665,7 @@ void MainWindow::updateSidebarVisibility() {
     } else if (playerState_ == PlayerFull) {
         show = sidebarOpen_;  // windowed full playback → only when toggled open
     }
-    nav_->setVisible(show);
+    sidebar_->setVisible(show);
     layoutPlayer();  // the content area resized; reposition the floating player
 }
 

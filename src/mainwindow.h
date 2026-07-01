@@ -7,6 +7,8 @@
 
 class QListWidget;
 class QStackedWidget;
+class QProgressBar;
+class QLabel;
 class QLineEdit;
 class QCompleter;
 class QStringListModel;
@@ -80,6 +82,7 @@ private:
     void layoutPlayer();
     void collapsePlayer();  // leave the full player: mini, or stop (per setting)
     void updateSidebarVisibility();  // hide the sidebar during windowed full playback
+    void updateDownloadStatus();     // reflect the active download in the sidebar
 
     Database* db_ = nullptr;
     ThumbnailLoader* thumbs_ = nullptr;
@@ -98,6 +101,10 @@ private:
     QLabel* updateBannerText_ = nullptr;
     QString updateUrl_;  // release page opened by the banner's View button
     QListWidget* nav_ = nullptr;
+    QWidget* sidebar_ = nullptr;      // nav list + the download indicator below it
+    QWidget* dlStatus_ = nullptr;     // sidebar active-download indicator (click → page)
+    QLabel* dlStatusLabel_ = nullptr;
+    QProgressBar* dlStatusBar_ = nullptr;
     QStackedWidget* pages_ = nullptr;
     QLineEdit* search_ = nullptr;
     QCompleter* searchCompleter_ = nullptr;

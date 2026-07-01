@@ -692,6 +692,62 @@ void Extractor::handleDetailsFinished(int exitCode, QProcess::ExitStatus status)
     emit detailsFinished(parseDetails(doc.object()));
 }
 
+QList<AudioTrackInfo> parseAudioTracks(const QByteArray& ytDlpJson) {
+    QList<AudioTrackInfo> tracks;
+    const QJsonObject root = QJsonDocument::fromJson(ytDlpJson).object();
+    QSet<QString> seen;
+    for (const QJsonValue& v : root.value(QStringLiteral("formats")).toArray()) {
+        const QJsonObject f = v.toObject();
+        // Audio-only formats carry the per-language tracks.
+        if (f.value(QStringLiteral("acodec")).toString() == QLatin1String("none") ||
+            f.value(QStringLiteral("vcodec")).toString() != QLatin1String("none")) {
+            continue;
+        }
+        const QString code = f.value(QStringLiteral("language")).toString();
+        if (code.isEmpty() || seen.contains(code)) {
+            continue;
+        }
+        seen.insert(code);
+        const QString note = f.value(QStringLiteral("format_note")).toString();
+
+        // The original vs. dubbed vs. auto-dubbed distinction isn't in
+        // format_note — it lives in the stream URL's "xtags" (acont=original /
+        // dubbed / dubbed-auto). language_preference==10 also flags the original.
+        QString acont;
+        const QUrl mediaUrl(f.value(QStringLiteral("url")).toString());
+        const QString xtags = QUrlQuery(mediaUrl.query()).queryItemValue(
+            QStringLiteral("xtags"), QUrl::FullyDecoded);
+        for (const QString& part : xtags.split(QLatin1Char(':'))) {
+            if (part.startsWith(QLatin1String("acont="))) {
+                acont = part.mid(6);
+            }
+        }
+
+        AudioTrackInfo t;
+        t.code = code;
+        // Clean language name: drop the ", quality" tail and any " (region)" /
+        // " original (default)" qualifier, e.g. "English (US) original
+        // (default), low" -> "English", "French (FR), low" -> "French".
+        t.name = note.section(QLatin1Char(','), 0, 0)
+                     .section(QStringLiteral(" ("), 0, 0)
+                     .trimmed();
+        t.isDefault = acont == QLatin1String("original") ||
+                      f.value(QStringLiteral("language_preference")).toInt() == 10 ||
+                      note.contains(QLatin1String("default"), Qt::CaseInsensitive);
+        t.autoDub = acont == QLatin1String("dubbed-auto");
+        tracks.push_back(t);
+    }
+    // Original(s) first, then the rest alphabetical by language name.
+    std::sort(tracks.begin(), tracks.end(),
+              [](const AudioTrackInfo& a, const AudioTrackInfo& b) {
+                  if (a.isDefault != b.isDefault) {
+                      return a.isDefault;  // default sorts to the top
+                  }
+                  return a.name.localeAwareCompare(b.name) < 0;
+              });
+    return tracks;
+}
+
 void Extractor::fetchAudioTracks(const QString& url) {
     if (audioProc_) {
         audioProc_->disconnect(this);
@@ -727,57 +783,7 @@ void Extractor::handleAudioTracksFinished(int exitCode, QProcess::ExitStatus sta
 
     QList<AudioTrackInfo> tracks;
     if (status == QProcess::NormalExit && exitCode == 0) {
-        const QJsonObject root = QJsonDocument::fromJson(out).object();
-        QSet<QString> seen;
-        for (const QJsonValue& v : root.value(QStringLiteral("formats")).toArray()) {
-            const QJsonObject f = v.toObject();
-            // Audio-only formats carry the per-language tracks.
-            if (f.value(QStringLiteral("acodec")).toString() == QLatin1String("none") ||
-                f.value(QStringLiteral("vcodec")).toString() != QLatin1String("none")) {
-                continue;
-            }
-            const QString code = f.value(QStringLiteral("language")).toString();
-            if (code.isEmpty() || seen.contains(code)) {
-                continue;
-            }
-            seen.insert(code);
-            const QString note = f.value(QStringLiteral("format_note")).toString();
-
-            // The original vs. dubbed vs. auto-dubbed distinction isn't in
-            // format_note — it lives in the stream URL's "xtags" (acont=original /
-            // dubbed / dubbed-auto). language_preference==10 also flags the original.
-            QString acont;
-            const QUrl mediaUrl(f.value(QStringLiteral("url")).toString());
-            const QString xtags = QUrlQuery(mediaUrl.query()).queryItemValue(
-                QStringLiteral("xtags"), QUrl::FullyDecoded);
-            for (const QString& part : xtags.split(QLatin1Char(':'))) {
-                if (part.startsWith(QLatin1String("acont="))) {
-                    acont = part.mid(6);
-                }
-            }
-
-            AudioTrackInfo t;
-            t.code = code;
-            // Clean language name: drop the ", quality" tail and any " (region)" /
-            // " original (default)" qualifier, e.g. "English (US) original
-            // (default), low" -> "English", "French (FR), low" -> "French".
-            t.name = note.section(QLatin1Char(','), 0, 0)
-                         .section(QStringLiteral(" ("), 0, 0)
-                         .trimmed();
-            t.isDefault = acont == QLatin1String("original") ||
-                          f.value(QStringLiteral("language_preference")).toInt() == 10 ||
-                          note.contains(QLatin1String("default"), Qt::CaseInsensitive);
-            t.autoDub = acont == QLatin1String("dubbed-auto");
-            tracks.push_back(t);
-        }
-        // Original(s) first, then the rest alphabetical by language name.
-        std::sort(tracks.begin(), tracks.end(),
-                  [](const AudioTrackInfo& a, const AudioTrackInfo& b) {
-                      if (a.isDefault != b.isDefault) {
-                          return a.isDefault;  // default sorts to the top
-                      }
-                      return a.name.localeAwareCompare(b.name) < 0;
-                  });
+        tracks = parseAudioTracks(out);
     }
     emit audioTracksReady(tracks, url);
 }

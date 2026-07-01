@@ -9,6 +9,7 @@
 #include <QFileDialog>
 #include <QFontComboBox>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QGroupBox>
 #include <QKeyCombination>
 #include <QKeySequenceEdit>
@@ -163,9 +164,25 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
     downloadQuality_->addItem(tr("360p"), 360);
     embedSubs_ = new QCheckBox(tr("Embed subtitles in video downloads"), downloads);
     embedSubs_->setToolTip(tr("Bakes the preferred-language captions into the video file."));
+    embedAllAudio_ = new QCheckBox(tr("Embed all audio languages in video downloads"), downloads);
+    embedAllAudio_->setToolTip(
+        tr("Saves one MKV holding every audio language as a switchable track, "
+           "instead of just the one you're watching."));
+    embedAutoDubs_ = new QCheckBox(tr("Include auto-dubbed audio"), downloads);
+    embedAutoDubs_->setToolTip(
+        tr("Also include YouTube's machine-generated dubs — often 15+ languages, "
+           "which bloats the file. Many videos have ONLY auto-dubs, so with this "
+           "off \"embed all languages\" may keep just the original."));
+    // Indent the auto-dub option so it reads as nested under "embed all".
+    auto* autoDubRow = new QWidget(downloads);
+    auto* autoDubLay = new QHBoxLayout(autoDubRow);
+    autoDubLay->setContentsMargins(24, 0, 0, 0);
+    autoDubLay->addWidget(embedAutoDubs_);
     dForm->addRow(tr("Save to folder:"), downloadFolderButton_);
     dForm->addRow(tr("Maximum video quality:"), downloadQuality_);
     dForm->addRow(QString(), embedSubs_);
+    dForm->addRow(QString(), embedAllAudio_);
+    dForm->addRow(QString(), autoDubRow);
     col->addWidget(downloads);
 
     // ---- Screenshots ----
@@ -395,6 +412,11 @@ SettingsPage::SettingsPage(Database* db, QWidget* parent) : QWidget(parent), db_
         connect(combo, &QComboBox::currentIndexChanged, this, [this] { save(); });
     }
     connect(embedSubs_, &QCheckBox::toggled, this, [this] { save(); });
+    connect(embedAllAudio_, &QCheckBox::toggled, this, [this](bool on) {
+        embedAutoDubs_->setEnabled(on);  // the nested option only applies when on
+        save();
+    });
+    connect(embedAutoDubs_, &QCheckBox::toggled, this, [this] { save(); });
     connect(downloadQuality_, &QComboBox::currentIndexChanged, this, [this] { save(); });
     connect(screenshotFormat_, &QComboBox::currentIndexChanged, this, [this] { save(); });
     connect(downloadFolderButton_, &QPushButton::clicked, this, [this] {
@@ -509,6 +531,9 @@ void SettingsPage::load() {
     downloadQuality_->setCurrentIndex(qMax(0, downloadQuality_->findData(
         s.value(QStringLiteral("downloads/maxHeight"), 0).toInt())));
     embedSubs_->setChecked(s.value(QStringLiteral("downloads/embedSubs"), false).toBool());
+    embedAllAudio_->setChecked(s.value(QStringLiteral("downloads/embedAllAudio"), false).toBool());
+    embedAutoDubs_->setChecked(s.value(QStringLiteral("downloads/embedAutoDubs"), false).toBool());
+    embedAutoDubs_->setEnabled(embedAllAudio_->isChecked());
     screenshotFormat_->setCurrentIndex(qMax(0, screenshotFormat_->findData(
         s.value(QStringLiteral("screenshot/format"), QStringLiteral("png")).toString())));
     screenshotFolder_ = s.value(QStringLiteral("screenshot/folder"),
@@ -586,6 +611,8 @@ void SettingsPage::save() {
     s.setValue(QStringLiteral("downloads/folder"), downloadFolder_);
     s.setValue(QStringLiteral("downloads/maxHeight"), downloadQuality_->currentData());
     s.setValue(QStringLiteral("downloads/embedSubs"), embedSubs_->isChecked());
+    s.setValue(QStringLiteral("downloads/embedAllAudio"), embedAllAudio_->isChecked());
+    s.setValue(QStringLiteral("downloads/embedAutoDubs"), embedAutoDubs_->isChecked());
     s.setValue(QStringLiteral("screenshot/format"), screenshotFormat_->currentData());
     s.setValue(QStringLiteral("screenshot/folder"), screenshotFolder_);
     for (auto it = shortcutEdits_.cbegin(); it != shortcutEdits_.cend(); ++it) {

@@ -61,6 +61,8 @@ private:
     QPushButton* downloadFolderButton_ = nullptr;
     QComboBox* downloadQuality_ = nullptr;
     QCheckBox* embedSubs_ = nullptr;
+    QCheckBox* embedAllAudio_ = nullptr;   // mux every audio language into one mkv
+    QCheckBox* embedAutoDubs_ = nullptr;   // include machine dubs (nested under above)
     QComboBox* screenshotFormat_ = nullptr;
     QPushButton* screenshotFolderButton_ = nullptr;
     QString screenshotFolder_;

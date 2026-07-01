@@ -160,10 +160,21 @@ void DownloadsPage::updateRow(Row& row, int id) {
             row.status->setText(tr("%1  ·  Queued").arg(type));
             break;
         case Download::Running:
-            row.status->setText(tr("%1  ·  %2%  ·  %3  ·  ETA %4")
-                                    .arg(type).arg(d->percent)
-                                    .arg(d->speed.isEmpty() ? QStringLiteral("—") : d->speed,
-                                         d->eta.isEmpty() ? QStringLiteral("—") : d->eta));
+            if (d->merging) {
+                row.status->setText(tr("%1  ·  %2%  ·  Merging tracks…").arg(type).arg(d->percent));
+            } else if (d->totalParts > 1) {
+                // Multi-stream (e.g. embed-all): show which track, so it doesn't
+                // look like the video is downloading over and over.
+                row.status->setText(tr("%1  ·  %2%  ·  track %3/%4  ·  %5")
+                                        .arg(type).arg(d->percent)
+                                        .arg(d->partIndex).arg(d->totalParts)
+                                        .arg(d->speed.isEmpty() ? QStringLiteral("—") : d->speed));
+            } else {
+                row.status->setText(tr("%1  ·  %2%  ·  %3  ·  ETA %4")
+                                        .arg(type).arg(d->percent)
+                                        .arg(d->speed.isEmpty() ? QStringLiteral("—") : d->speed,
+                                             d->eta.isEmpty() ? QStringLiteral("—") : d->eta));
+            }
             break;
         case Download::Completed:
             row.status->setText(tr("Completed  ·  %1").arg(QFileInfo(d->filePath).fileName()));
