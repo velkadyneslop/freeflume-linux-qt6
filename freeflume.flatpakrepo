@@ -1,0 +1,9 @@
+[Flatpak Repo]
+Title=FreeFlume
+Url=https://velkadyneslop.github.io/freeflume-linux-qt6/repo
+Homepage=https://github.com/velkadyneslop/freeflume-linux-qt6
+Comment=Self-hosted FreeFlume Flatpak repository
+Description=Fast native desktop YT client
+Icon=https://velkadyneslop.github.io/freeflume-linux-qt6/icon.svg
+DefaultBranch=stable
+GPGKey=mDMEajg4QhYJKwYBBAHaRw8BAQdAVz+FM/YSell0s1txMxKA4CEksK+bMa9xIg2/Uxjt5Wm0LUZyZWVGbHVtZSBUZXN0IFNpZ25pbmcgPHRlc3RAZnJlZWZsdW1lLmxvY2FsPoiTBBMWCgA7FiEE0zawLgiR2qMalqT1oiRGLFbDh+4FAmo4OEICGwMFCwkIBwICIgIGFQoJCAsCBBYCAwECHgcCF4AACgkQoiRGLFbDh+7BaAEA9N7pinochlPpzVn3uVulbrulzZpysBGv38pc9hdvkFMBAMPK4iKb55LUNvmDRMJMySagQ+CquDyIWuZmTimflFMO
